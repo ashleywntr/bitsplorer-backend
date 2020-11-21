@@ -5,19 +5,20 @@ from concurrent.futures import as_completed
 from datetime import datetime
 import traceback
 import json
+import logging
 
 import requests
+from pymongo import errors
 from pymongo import MongoClient
 from requests_futures.sessions import FuturesSession
-from rich.console import Console
 
 from flask import jsonify
+
+# logging.basicConfig(level=logging.INFO, filename='test_log')
 
 default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
-
-console = Console()
 
 db_address = "mongodb://wntrdesktop:27017/"
 
@@ -30,53 +31,36 @@ block_collection = database["Blocks"]
 blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
 
+TRANSACTION = 'TRANSACTION'
+BLOCK = 'BLOCK'
+
 BlockDays = []
 Address_Data: dict = {}
 
 automatic_database_export = True
 
 
-def single_getter(url, session, headers):
-    print("Single Getter retrieving for", url)
-    try:
-        session_data_json = session.get(url=url, headers=headers)
-        session_data_json.raise_for_status()
-        session_data_dict = session_data_json.json()
-
-    except Exception as ex:
-        print("Single Request Fail", ex)
-        raise Exception("Single Request Failed")
-    else:
-        return session_data_dict
+def database_ping():
+    pass
 
 
-def mongo_db_getter(client: MongoClient, search_string: str, transactions_required=True):
-    result = client.find_one(search_string)
-    if result:
-        try:
-            block_result = Block(result, retrieved_from_db=True, transactions_required=transactions_required)
-        except Exception as ex:
-            print("Unable to assign result to block", ex)
-        else:
-            print('Returning Complete Block from DB')
-            return block_result
-    else:
-        raise TypeError('Cant assign blank request to block')
-
-
-def mongo_db_getter_transaction(client: MongoClient, search_string: str):
+def mongo_db_getter(client: MongoClient, search_string: str, object_type: str, tx_required_for_blocks):
+    print(f'Mongo DB Getter called with object type {object_type} and search string{search_string}')
+    print(f'Transaction information required when retrieving blocks: {tx_required_for_blocks}')
 
     result = client.find_one(search_string)
     assert result
-    if result:
-        try:
-            transaction_result = Transaction(result, retrieved_from_db=True)
-        except Exception as ex:
-            print("Unable to assign result to transaction", ex)
-        else:
-            return transaction_result
+    result_object = None
+    try:
+        if object_type == TRANSACTION:
+            result_object = Transaction(result, retrieved_from_db=True)
+        elif object_type == BLOCK:
+            result_object = Block(result, retrieved_from_db=True, transactions_required=tx_required_for_blocks)
+    except Exception as ex:
+        print(f"Unable to assign result to object {object_type}", ex)
     else:
-        raise TypeError('Transaction Not Found. Re-Instantiating Block')
+        assert result_object
+        return result_object
 
 
 class BlockDay:
@@ -105,8 +89,13 @@ class BlockDay:
         self.avg_val_inputs = 0
         self.avg_val_outputs = 0
 
-    def data_retrieval(self, outline_only=False):
-        database_lookup = blockday_collection.find_one(self._id)
+    def data_retrieval(self, outline_only_request=False):
+        try:
+            database_lookup = blockday_collection.find_one(self._id)
+        except errors.NetworkTimeout as timeout:
+            raise Exception("Can't connect to Database")
+
+
         try:  # Assign values from API import
             self.block_outline_dict = {block: {'height': 0, 'time': 0, 'hash': block} for block in
                                        database_lookup['blocks']}
@@ -127,14 +116,20 @@ class BlockDay:
             self.avg_val_outputs = database_lookup['total_val_outputs']
             self.outline_in_db = True
 
-        except Exception as EX:
-            print("Blockday not in DB", EX)
-            self.blockday_outline_api_retrieval()
+        except Exception:
+            print("Blockday not in database")
+
+            try:
+                self.blockday_outline_api_retrieval()
+            except Exception as ex:
+                print('BlockDay API retrieval Failed', ex)
+                raise Exception('Failed to retrieve BlockDay data from API')
+
         finally:
-            if not self.outline_in_db or not outline_only:
+            if not self.outline_in_db or not outline_only_request:
                 print(f"Retrieving Blocks for BlockDay {self._id}")
-                self.retrieve_blocks()
-            return True
+                self.retrieve_blocks(transactions_required_for_existing_blocks=False)
+            return self.db_attribute_exporter(only_return=True)
 
     def blockday_outline_api_retrieval(self):
         timestamp_corrected = self.timestamp  # + timedelta(days=1)
@@ -148,30 +143,34 @@ class BlockDay:
             while request_itr < 5:
                 request_itr += 1
                 try:
-                    block_data_dict = single_getter(url=block_importer_url, session=block_outline_import_session,
-                                                    headers=default_headers)
+                    session_data_json = block_outline_import_session.get(url=block_importer_url,
+                                                                         headers=default_headers)
+                    session_data_json.raise_for_status()
+                    block_data_dict = session_data_json.json()
                 except Exception as ex:
                     print("Failure to instantiate block data dict. Will retry", ex)
                 else:
                     break
                 if request_itr == 5:
-                    raise Exception('Failed to retrieve block data dict')
-        try:
-            self.block_outline_dict = {block['hash']: block for block in block_data_dict['blocks']}
-        except Exception as ex:
-            print(f'Block Import Dict assignment Failed {ex}')
+                    raise Exception('5 retries attempted. Failed to retrieve block data dict')
 
-    def retrieve_blocks(self, transactions_required=True):
+        assert block_data_dict
+        self.block_outline_dict = {block['hash']: block for block in block_data_dict['blocks']}
+
+    def retrieve_blocks(self, transactions_required_for_existing_blocks=True):
         futures = []
         working_list = []
 
-        with ThreadPoolExecutor(max_workers=500) as executor:
+        with ThreadPoolExecutor(max_workers=500) as executor: ##Search the Database
             for something, x in self.block_outline_dict.items():
                 try:
                     mongo_client = MongoClient(db_address)[db_slice]['Blocks']
-                    futures.append(executor.submit(mongo_db_getter(mongo_client, x['hash'], transactions_required=False)))
-                except Exception as ex:
-                    print("Block or Transaction Data missing from DB", ex)
+                    futures.append(executor.submit(
+                        mongo_db_getter(client=mongo_client, search_string=x['hash'], object_type=BLOCK,
+                                        tx_required_for_blocks=transactions_required_for_existing_blocks)))
+                except Exception:
+                    print(
+                        f"Block or Transaction Data missing from Database. Adding to working list for API retrieval.")
                     working_list.append(x['hash'])
 
             for future in as_completed(futures):
@@ -181,18 +180,15 @@ class BlockDay:
                     self.block_instantiated_object_dict[block_object.hash] = block_object
                     print(f"Block {block_object.height} retrieved from DB")
                 except Exception as ex:
-                    print("Incorrect object returned from threaded DB function")
+                    print(f"Incorrect object returned from threaded DB function {ex}. Adding to working list for API retrieval.")
                     working_list.append(x['hash'])
 
         if working_list:
             self.retrieve_blocks_from_api(working_list)
         else:
             print("All required values were found in Database")
-        self.statistics_generation()
 
-        print(f"Total number of blocks is {self.total_num_blocks}")
-        print(f"Length of block outline dict is {len(self.block_outline_dict)}")
-        print("Attempting Assertion")
+        self.statistics_generation()
 
         assert self.total_num_blocks == len(self.block_outline_dict)
 
@@ -200,12 +196,13 @@ class BlockDay:
             try:
                 self.db_attribute_exporter()
             except Exception as ex:
-                print('Unable to export Blockday to DB')
+                print('Unable to export Blockday to DB', {ex})
 
     def retrieve_blocks_from_api(self, working_list):
         loop_count = 0
         while working_list:
             print(f'{len(working_list)} entries on {self._id} working list')
+
             with FuturesSession(max_workers=40) as session:
                 futures = []
                 for x in working_list:
@@ -217,25 +214,21 @@ class BlockDay:
                 try:
                     result = future.result()
                     result.raise_for_status()
-                    block_dict = result.json()
-
-                    block_object = Block(block_dict)
+                    block_object = Block(result.json())
 
                     self.block_instantiated_object_dict[block_object.hash] = block_object
-
                     working_list.remove(block_object.hash)
                     print(f'{len(working_list)} entries on {self._id} working list')
 
-
                 except requests.exceptions.HTTPError as ex:
                     if ex.response.status_code == 429:
-                        console.print('API Request Limit Exceeded')
+                        print('API Request Limit Exceeded')
                     else:
-                        console.print('Other HTTP error occurred')
+                        print('Other HTTP error occurred', ex)
                 except Exception as ex:
-                    console.print("Other error occurred", ex)
+                    print('Other Exception Occured', ex)
 
-        console.print(f'Failed {len(working_list)} retrievals')
+        print(f'Failed {len(working_list)} retrievals')
         loop_count += 1
         if loop_count == 15:
             raise Exception("Failed to retrieve all values on working list")
@@ -260,25 +253,21 @@ class BlockDay:
         export_attributes = {}
         excluded_keys = {'block_instantiated_object_dict', 'block_outline_dict', 'failed_retrievals',
                          'data_instantiated', 'cached_import', 'outline_in_db', 'db_block_list', 'timestamp'}
-        try:
-            for attribute, value in vars(self).items():
-                if attribute not in excluded_keys:
-                    export_attributes[attribute] = value
-        except Exception as ex:
-            print("Automatic attribute generation failed", ex)
+
+        for attribute, value in vars(self).items():
+            if attribute not in excluded_keys:
+                export_attributes[attribute] = value
 
         try:
             export_attributes['blocks'] = [x for x in self.block_instantiated_object_dict]
             assert len(export_attributes['blocks']) == self.total_num_blocks
-        except Exception as ex:
-            print("Number of Instantiated Blocks does not match Total", ex)
-            try:
-                export_attributes['blocks'] = self.db_block_list
-                print("Exported block list from database value")
-            except Exception as ex:
-                print("No block information found for Blockday")
+        except AssertionError:
+            print(f"List of Blocks stored in memory does not match registered total ({len(export_attributes['blocks'])} of {self.total_num_blocks})")
+            assert self.db_block_list
+            export_attributes['blocks'] = self.db_block_list
+            print("Exported block list from Database list. Blocks not instantiated in memory.")
 
-        if not only_return:
+        if automatic_database_export and not only_return:
             try:
                 blockday_collection.insert_one(export_attributes)
             except Exception as ex:
@@ -354,13 +343,18 @@ class Block:
         futures_list = []
         with ThreadPoolExecutor(max_workers=500) as executor:
             for tx in tx_list:
-                client = MongoClient(db_address)[db_slice]["Transactions"]
-                futures_list.append(executor.submit(mongo_db_getter_transaction(client=client, search_string=tx, block_hash=self.hash)))
-            try:
-                for future in as_completed(futures_list):
-                    self.tx.append(future.result())
-            except Exception as ex:
-                raise Exception("Transaction missing from DB")
+                try:
+                    client = MongoClient(db_address)[db_slice]["Transactions"]
+                    futures_list.append(executor.submit(
+                        mongo_db_getter(client=client, search_string=tx, object_type=TRANSACTION,
+                                        tx_required_for_blocks=None)))
+
+                except Exception as ex:
+                    print(f'Transaction missing from DB {ex}. Exception raised.')
+                    raise Exception("Transaction missing from DB")
+
+            for future in as_completed(futures_list):
+                self.tx.append(future.result())
 
     def statistics_generation(self):
 
@@ -382,22 +376,19 @@ class Block:
     def db_attribute_exporter(self):
         export_attributes = {}
         excluded_keys = {'tx', 'block_attribute_table', 'hash', 'cached_import', 'data_instantiated'}
-        try:
-            for attribute, value in vars(self).items():
-                if attribute not in excluded_keys:
-                    export_attributes[attribute] = value
-        except Exception as ex:
-            print("Automatic attribute generation failed", ex)
-        try:
-            export_attributes['tx'] = [x.hash for x in self.tx]
-        except Exception as ex:
-            print("Assignment of inputs and exports failed", ex)
+
+        for attribute, value in vars(self).items():
+            if attribute not in excluded_keys:
+                export_attributes[attribute] = value
+
+        export_attributes['tx'] = [x.hash for x in self.tx]
 
         try:
             block_collection.insert_one(export_attributes)
             print(f"Block {self.height} Successfully Exported")
         except Exception as ex:
             print("Block Export Failed", ex)
+            print('Block Export failed {ex}')
 
     def __call__(self):
         return self
@@ -458,15 +449,15 @@ class Transaction:
     def attribute_exporter(self):
         export_attributes = {}
         excluded_keys = {'hash', 'cached_import'}
-        try:
-            for attribute, value in vars(self).items():
-                if attribute not in excluded_keys:
-                    export_attributes[attribute] = value
-        except Exception as ex:
-            print("Automatic attribute generation failed", ex)
+
+        for attribute, value in vars(self).items():
+            if attribute not in excluded_keys:
+                export_attributes[attribute] = value
+
         try:
             transaction_collection.insert_one(export_attributes)
         except Exception as ex:
+            print(f'Transaction Export Exception Occurred {ex}')
             pass
 
     def __call__(self, *args, **kwargs):

@@ -27,19 +27,20 @@ def api_welcome_stats():
 @app.route('/api/blockdays', methods=['GET'])
 def api_blockdays():
     date_string = request.args['date']
+    return_data = {}
 
     try:
         date_object_from = datetime.strptime(date_string, '%Y-%m-%d')
     except Exception as ex:
         print(f"Datetime assignment failed {ex}")
-
     else:
-        return_blockday = data_structures.BlockDay(date_object_from)
-        return_blockday.data_retrieval(outline_only=True)
-        return_data = json.dumps((return_blockday.db_attribute_exporter(only_return=True)))
-
-        if not return_data:
-            abort(404)
+        try:
+            return_blockday = data_structures.BlockDay(date_object_from)
+            return_data = json.dumps((return_blockday.data_retrieval(outline_only_request=True)))
+        except Exception as ex:
+            print('BlockDay Creation Failed', ex)
+            abort(500)
+        assert return_data
         return return_data
 
 
