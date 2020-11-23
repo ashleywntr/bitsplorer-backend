@@ -48,7 +48,11 @@ def mongo_db_getter(client: MongoClient, search_string: str, object_type: str, t
     print(f'Mongo DB Getter called with object type {object_type} and search string{search_string}')
     print(f'Transaction information required when retrieving blocks: {tx_required_for_blocks}')
 
-    result = client.find_one(search_string)
+    try:
+        result = client.find_one(search_string)
+    except errors.ServerSelectionTimeoutError as timeout:
+        raise Exception("Can't connect to Database")
+
     assert result
     result_object = None
     try:
@@ -92,7 +96,7 @@ class BlockDay:
     def data_retrieval(self, outline_only_request=False):
         try:
             database_lookup = blockday_collection.find_one(self._id)
-        except errors.NetworkTimeout as timeout:
+        except errors.ServerSelectionTimeoutError as timeout:
             raise Exception("Can't connect to Database")
 
 
@@ -348,7 +352,8 @@ class Block:
                     futures_list.append(executor.submit(
                         mongo_db_getter(client=client, search_string=tx, object_type=TRANSACTION,
                                         tx_required_for_blocks=None)))
-
+                except errors.ServerSelectionTimeoutError as timeout:
+                    raise Exception("Can't connect to Database")
                 except Exception as ex:
                     print(f'Transaction missing from DB {ex}. Exception raised.')
                     raise Exception("Transaction missing from DB")
@@ -386,9 +391,10 @@ class Block:
         try:
             block_collection.insert_one(export_attributes)
             print(f"Block {self.height} Successfully Exported")
+        except errors.ServerSelectionTimeoutError as timeout:
+            raise Exception("Can't connect to Database")
         except Exception as ex:
             print("Block Export Failed", ex)
-            print('Block Export failed {ex}')
 
     def __call__(self):
         return self
@@ -456,9 +462,12 @@ class Transaction:
 
         try:
             transaction_collection.insert_one(export_attributes)
+
+        except errors.ServerSelectionTimeoutError as timeout:
+            raise Exception("Can't connect to Database")
         except Exception as ex:
             print(f'Transaction Export Exception Occurred {ex}')
-            pass
+            traceback.print_exc()
 
     def __call__(self, *args, **kwargs):
         return self

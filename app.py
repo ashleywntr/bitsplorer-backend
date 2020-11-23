@@ -20,6 +20,11 @@ def hello_world():
     return 'Hello World!'
 
 
+@app.route('/api')
+def hello_api_world():
+    return 'Hello api World!'
+
+
 @app.route('/api/welcomestats', methods=['GET'])
 def api_welcome_stats():
     pass
