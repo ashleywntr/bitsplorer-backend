@@ -211,7 +211,10 @@ class BlockDay:
                 futures = []
                 for block_hash in working_list:
                     block_api_single_block_url = f'https://blockchain.info/rawblock/{block_hash}'
-                    futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
+                    try:
+                        futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
+                    except Exception as ex:
+                        print('This is raising an exception lol')
 
             for future in as_completed(futures):
                 try:
