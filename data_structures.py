@@ -207,10 +207,9 @@ class BlockDay:
         while working_list:
             print(f'{len(working_list)} entries on {self._id} working list')
 
-            with FuturesSession(max_workers=40) as session:
+            with FuturesSession(max_workers=100) as session:
                 futures = []
-                for x in working_list:
-                    block_hash = f'{x}'
+                for block_hash in working_list:
                     block_api_single_block_url = f'https://blockchain.info/rawblock/{block_hash}'
                     futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
 
@@ -462,12 +461,10 @@ class Transaction:
 
         try:
             transaction_collection.insert_one(export_attributes)
-
         except errors.ServerSelectionTimeoutError as timeout:
             raise Exception("Can't connect to Database")
-        except Exception as ex:
-            print(f'Transaction Export Exception Occurred {ex}')
-            traceback.print_exc()
+        except errors.DuplicateKeyError:
+            print(f"Transaction {self.hash} already in Database")
 
     def __call__(self, *args, **kwargs):
         return self
