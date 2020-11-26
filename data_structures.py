@@ -93,7 +93,7 @@ class BlockDay:
         self.avg_val_inputs = 0
         self.avg_val_outputs = 0
 
-    def data_retrieval(self, outline_only_request=False):
+    def data_retrieval(self, outline_only_request=False, transactions_required_for_blocks=True):
         try:
             database_lookup = blockday_collection.find_one(self._id)
         except errors.ServerSelectionTimeoutError as timeout:
@@ -130,9 +130,13 @@ class BlockDay:
                 raise Exception('Failed to retrieve BlockDay data from API')
 
         finally:
-            if not self.outline_in_db or not outline_only_request:
+            if not self.outline_in_db or outline_only_request:
                 print(f"Retrieving Blocks for BlockDay {self._id}")
-                self.retrieve_blocks(transactions_required_for_existing_blocks=False)
+                self.retrieve_blocks(transactions_required_for_existing_blocks=transactions_required_for_blocks)
+            else:
+                print(f'Retrieving Full Data for Blockday')
+                self.retrieve_blocks(transactions_required_for_existing_blocks=transactions_required_for_blocks)
+
             return self.db_attribute_exporter(only_return=True)
 
     def blockday_outline_api_retrieval(self):
@@ -218,6 +222,7 @@ class BlockDay:
 
             for future in as_completed(futures):
                 try:
+                    print("Block Future Retrieved. Committing to Memory and DB")
                     result = future.result()
                     result.raise_for_status()
                     block_object = Block(result.json())
@@ -231,8 +236,6 @@ class BlockDay:
                         print('API Request Limit Exceeded')
                     else:
                         print('Other HTTP error occurred', ex)
-                except Exception as ex:
-                    print('Other Exception Occured', ex)
 
         print(f'Failed {len(working_list)} retrievals')
         loop_count += 1

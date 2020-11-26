@@ -30,6 +30,44 @@ def api_welcome_stats():
     pass
 
 
+@app.route('/api/visualisation/sunburst', methods=['GET'])
+def api_sunburst_visualisation():
+
+    working_blockdays = []
+
+    blockday_required_stats=[]
+
+    date_from = request.args['from_date']
+    date_to = request.args['to_date']
+
+    date_object_from = datetime.strptime(date_from, '%d%m%Y')
+    date_object_to = datetime.strptime(date_to, '%d%m%Y')
+
+    date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to-date_object_from).days + 1)]
+
+    for date in date_list:
+        working_blockdays.append(data_structures.BlockDay(date))
+
+    for blockday in working_blockdays:
+        data = blockday.data_retrieval(transactions_required_for_blocks=False)
+        block_list = []
+
+        for something, block in blockday.block_instantiated_object_dict.items():
+            # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
+            block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
+            block_list.append(block_required_stats)
+
+        blockday_required_stats.append({'name': data['_id'], 'children': block_list, 'size': data['total_val_outputs'] / 100000000})
+
+    json_outline = {
+        'name': 'Blockday Graph',
+        'children': blockday_required_stats
+    }
+
+    return json.dumps(json_outline)
+
+
+
 @app.route('/api/csv/block')
 def api_csv_block_list():
     date_string = request.args['date']
@@ -37,7 +75,7 @@ def api_csv_block_list():
 
     date_object_from = datetime.strptime(date_string, '%d%m%Y')
     return_blockday = data_structures.BlockDay(date_object_from)
-    data_retrieval = return_blockday.data_retrieval(outline_only_request=True)
+    data_retrieval = return_blockday.data_retrieval(outline_only_request=True, transactions_required_for_blocks=False)
     block_list = data_retrieval['blocks']
 
     for x in block_list:
@@ -115,10 +153,12 @@ def api_blockdays():
     else:
         try:
             return_blockday = data_structures.BlockDay(date_object_from)
-            return_data = json.dumps((return_blockday.data_retrieval(outline_only_request=True)))
+            return_data = json.dumps((return_blockday.data_retrieval(outline_only_request=True, transactions_required_for_blocks=False)))
         except Exception as ex:
             print('BlockDay Creation Failed', ex)
             abort(500)
+        finally:
+            del return_blockday
         assert return_data
         return return_data
 
@@ -149,8 +189,8 @@ def api_transactions():
     except Exception as ex:
         print(ex)
         abort(404)
-    else:
-        return return_data
+
+    return return_data
 
 
 if __name__ == '__main__':
