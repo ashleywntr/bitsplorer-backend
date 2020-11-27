@@ -7,6 +7,7 @@ from flask_csv import send_csv
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 import json
+import traceback
 import concurrent.futures
 
 import data_structures
@@ -156,6 +157,7 @@ def api_blockdays():
             return_data = json.dumps((return_blockday.data_retrieval(data_structures.OUTLINE_ONLY)))
         except Exception as ex:
             print('BlockDay Creation Failed', ex)
+            traceback.print_exc()
             abort(500)
         finally:
             del return_blockday

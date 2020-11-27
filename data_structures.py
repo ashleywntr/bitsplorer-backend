@@ -104,7 +104,7 @@ class BlockDay:
             print("Assertion Error: BlockDay not in database")
             try:
                 self.blockday_outline_api_retrieval()
-                self.retrieve_blocks(import_transactions=True)
+                self.retrieve_blocks(import_transactions=False)
                 return self.db_attribute_exporter()
             except Exception as ex:
                 raise Exception('Failed to retrieve BlockDay data from API', ex)
@@ -114,7 +114,6 @@ class BlockDay:
                 if retrieval_type == FULL_RETRIEVAL:
                     print('Retrieving All BlockDay Data and adding to memory')
                     self.retrieve_blocks(import_transactions=True)
-
                 elif retrieval_type == BLOCK_DATA_ONLY:
                     print(f"Retrieving Blocks for BlockDay  {self._id} without transactions")
                     self.retrieve_blocks(import_transactions=False)
@@ -126,6 +125,7 @@ class BlockDay:
             return self.db_attribute_exporter(only_return=True)
 
     def blockday_outline_api_retrieval(self):
+        print('Retrieving Blockday from API')
         timestamp_corrected = self.timestamp  # + timedelta(days=1)
         timestamp_in_milliseconds = timestamp_corrected.timestamp() * 1000
         timestamp_as_string = str(timestamp_in_milliseconds)[:-2]
@@ -152,9 +152,11 @@ class BlockDay:
         self.block_outline_list = [block for block in block_data_dict['blocks']]
 
     def retrieve_blocks(self, import_transactions=True):
+        print('Retrieving Blocks')
         working_list = []
 
         for x in self.block_outline_list:
+            print(f"Retrieving block {x['hash']}")
             mongo_client = MongoClient(db_address)[db_slice]['Blocks']
             try:
                 result = mongo_client.find_one(x['hash'])
@@ -162,9 +164,13 @@ class BlockDay:
             except Exception:
                 working_list.append(x['hash'])
             else:
-                block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
-                self.instantiated_block_objects.append(block_object)
-                print(f"Block {block_object.height} retrieved from DB")
+                try:
+                    block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
+                    self.instantiated_block_objects.append(block_object)
+                    print(f"Block {block_object.height} retrieved from DB")
+                except Exception as ex:
+                    print(ex)
+                    working_list.append(x['hash'])
 
         if working_list:
             self.retrieve_blocks_from_api(working_list)
@@ -194,7 +200,7 @@ class BlockDay:
                     try:
                         futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
                     except Exception as ex:
-                        print('This is raising an exception lol')
+                        print('Block getter raised exception', ex)
 
             for future in as_completed(futures):
                 try:
@@ -307,7 +313,7 @@ class Block:
         else:
             self.hash = block_attr_dict['_id']
             if transactions_required:
-                self.retrieve_transactions_from_db(block_attr_dict['tx'])
+                self.retrieve_transactions_from_db()
 
             self.total_num_inputs_block: int = block_attr_dict['total_num_inputs_block']
             self.total_num_outputs_block: int = block_attr_dict['total_num_outputs_block']
@@ -323,11 +329,13 @@ class Block:
             self.average_num_inputs_per_transaction = block_attr_dict['average_num_inputs_per_transaction']
             self.average_num_outputs_per_transaction = block_attr_dict['average_num_outputs_per_transaction']
 
-    def retrieve_transactions_from_db(self, tx_list):
+    def retrieve_transactions_from_db(self):
+        print(f'Retrieving Transactions for block {self.hash}')
         client = MongoClient(db_address)[db_slice]["Transactions"]
         cursor_list = client.find({'block_hash': self.hash})
         for tx in cursor_list:
             self.tx.append(Transaction(tx, retrieved_from_db=True))
+        print(len(self.tx), self.n_tx)
         assert len(self.tx) == self.n_tx
 
     def statistics_generation(self):
