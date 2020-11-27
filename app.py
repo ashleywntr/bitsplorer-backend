@@ -49,10 +49,10 @@ def api_sunburst_visualisation():
         working_blockdays.append(data_structures.BlockDay(date))
 
     for blockday in working_blockdays:
-        data = blockday.data_retrieval(transactions_required_for_blocks=False)
+        data = blockday.data_retrieval(retrieval_type=data_structures.FULL_RETRIEVAL)
         block_list = []
 
-        for something, block in blockday.block_instantiated_object_dict.items():
+        for something, block in blockday.instantiated_block_objects.items():
             # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
             block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
             block_list.append(block_required_stats)
@@ -75,7 +75,7 @@ def api_csv_block_list():
 
     date_object_from = datetime.strptime(date_string, '%d%m%Y')
     return_blockday = data_structures.BlockDay(date_object_from)
-    data_retrieval = return_blockday.data_retrieval(outline_only_request=True, transactions_required_for_blocks=False)
+    data_retrieval = return_blockday.data_retrieval(data_structures.OUTLINE_ONLY)
     block_list = data_retrieval['blocks']
 
     for x in block_list:
@@ -153,7 +153,7 @@ def api_blockdays():
     else:
         try:
             return_blockday = data_structures.BlockDay(date_object_from)
-            return_data = json.dumps((return_blockday.data_retrieval(outline_only_request=True, transactions_required_for_blocks=False)))
+            return_data = json.dumps((return_blockday.data_retrieval(data_structures.OUTLINE_ONLY)))
         except Exception as ex:
             print('BlockDay Creation Failed', ex)
             abort(500)
