@@ -220,6 +220,8 @@ class BlockDay:
                         print('Other HTTP error occurred', ex)
                 except requests.exceptions.ReadTimeout as timeout:
                     print("Request read timeout", timeout)
+                except requests.exceptions.ConnectionError as connection_error:
+                    print("Connection Error Occured", connection_error)
                 else:
                     working_list.remove(block_object.hash)
                     print(f'{len(working_list)} entries on {self._id} working list')
@@ -443,12 +445,11 @@ class Transaction:
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
-
         try:
             transaction_collection.insert_one(export_attributes)
-            print(f'Transaction {self.hash} Exported to DB')
+            # print(f'Transaction {self.hash} Exported to DB')
         except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")
+            raise Exception("Can't connect to Database", timeout)
         except errors.DuplicateKeyError:
             print(f"Transaction {self.hash} already in Database")
 
