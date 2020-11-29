@@ -9,6 +9,7 @@ from concurrent.futures import as_completed
 import json
 import traceback
 import concurrent.futures
+import gc
 
 import data_structures
 
@@ -144,6 +145,7 @@ def api_csv_transaction_list():
 
 @app.route('/api/blockdays', methods=['GET'])
 def api_blockdays():
+    gc.collect()
     date_string = request.args['date']
     return_data = {}
 
