@@ -249,7 +249,7 @@ class BlockDay:
 
     def db_attribute_exporter(self, only_return=False):
         export_attributes = {}
-        excluded_keys = {'block_instantiated_object_dict', 'block_outline_dict', 'failed_retrievals',
+        excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals',
                          'data_instantiated', 'cached_import', 'outline_in_db', 'db_block_list', 'timestamp'}
 
         for attribute, value in vars(self).items():
