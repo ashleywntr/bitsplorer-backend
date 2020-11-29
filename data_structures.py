@@ -213,14 +213,16 @@ class BlockDay:
                     result.raise_for_status()
                     block_object = Block(result.json())
                     self.instantiated_block_objects.append(block_object)
-                    working_list.remove(block_object.hash)
-                    print(f'{len(working_list)} entries on {self._id} working list')
-
                 except requests.exceptions.HTTPError as ex:
                     if ex.response.status_code == 429:
                         print('API Request Limit Exceeded')
                     else:
                         print('Other HTTP error occurred', ex)
+                except requests.exceptions.ReadTimeout as timeout:
+                    print("Request read timeout", timeout)
+                else:
+                    working_list.remove(block_object.hash)
+                    print(f'{len(working_list)} entries on {self._id} working list')
 
         print(f'Failed {len(working_list)} retrievals')
         loop_count += 1
