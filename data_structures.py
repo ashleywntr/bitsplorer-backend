@@ -109,7 +109,7 @@ class BlockDay:
             except Exception as ex:
                 raise Exception('Failed to retrieve BlockDay data from API', ex)
 
-        finally:
+        else:
             if self.imported_from_db:
                 if retrieval_type == FULL_RETRIEVAL:
                     print('Retrieving All BlockDay Data and adding to memory')
@@ -201,6 +201,11 @@ class BlockDay:
                         futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
                     except Exception as ex:
                         print('Block getter raised exception', ex)
+                    except requests.exceptions.HTTPError as ex:
+                        if ex.response.status_code == 429:
+                            print('API Request Limit Exceeded')
+                        else:
+                            print('Other HTTP error occurred', ex)
 
             for future in as_completed(futures):
                 try:
