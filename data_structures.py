@@ -100,7 +100,7 @@ class BlockDay:
             self.avg_val_outputs = database_lookup['total_val_outputs']
             self.imported_from_db = True
 
-        except AssertionError as error:
+        except AssertionError:
             print("Assertion Error: BlockDay not in database")
             try:
                 self.blockday_outline_api_retrieval()
@@ -256,14 +256,12 @@ class BlockDay:
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
         try:
-            export_attributes['blocks'] = [x for x in self.instantiated_block_objects]
+            export_attributes['blocks'] = [x.hash for x in self.instantiated_block_objects]
             assert len(export_attributes['blocks']) == self.total_num_blocks
         except AssertionError:
-            print(f"List of Blocks stored in memory does not match registered total ({len(export_attributes['blocks'])} of {self.total_num_blocks})")
-
+            print(f"({len(export_attributes['blocks'])} of {self.total_num_blocks}) instantiated in memory. Using DB list")
             assert self.db_block_list
             export_attributes['blocks'] = self.db_block_list
-            print("Exported block list from Database list. Blocks not instantiated in memory.")
 
         if automatic_database_export and not only_return:
             try:
