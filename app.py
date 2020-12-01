@@ -42,8 +42,8 @@ def api_sunburst_visualisation():
     date_from = request.args['from']
     date_to = request.args['to']
 
-    date_object_from = datetime.strptime(date_from, '%d%m%Y')
-    date_object_to = datetime.strptime(date_to, '%d%m%Y')
+    date_object_from = datetime.strptime(date_from, '%Y%m%d')
+    date_object_to = datetime.strptime(date_to, '%Y%m%d')
 
     date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to-date_object_from).days + 1)]
 
