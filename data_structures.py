@@ -20,32 +20,24 @@ default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
 
+FULL_RETRIEVAL = 'full_retrieval'
+BLOCK_DATA_ONLY = 'block_data_only'
+OUTLINE_ONLY = 'outline_only'
+TRANSACTION = 'TRANSACTION'
+BLOCK = 'BLOCK'
+
 db_address = "mongodb://wntrdesktop:27017/"
 
 database_client = MongoClient(db_address)
 db_slice = 'pychain-dev'
-
-FULL_RETRIEVAL='full_retrieval'
-BLOCK_DATA_ONLY='block_data_only'
-OUTLINE_ONLY='outline_only'
-
 database = database_client[db_slice]
 transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
 blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
 
-TRANSACTION = 'TRANSACTION'
-BLOCK = 'BLOCK'
-
-BlockDays = []
-Address_Data: dict = {}
-
 automatic_database_export = True
 
-
-def database_ping():
-    pass
 
 class BlockDay:
     def __init__(self, timestamp: datetime):
@@ -259,7 +251,8 @@ class BlockDay:
             export_attributes['blocks'] = [x.hash for x in self.instantiated_block_objects]
             assert len(export_attributes['blocks']) == self.total_num_blocks
         except AssertionError:
-            print(f"({len(export_attributes['blocks'])} of {self.total_num_blocks}) instantiated in memory. Using DB list")
+            print(
+                f"({len(export_attributes['blocks'])} of {self.total_num_blocks}) instantiated in memory. Using DB list")
             assert self.db_block_list
             export_attributes['blocks'] = self.db_block_list
 

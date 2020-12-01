@@ -39,8 +39,8 @@ def api_sunburst_visualisation():
 
     blockday_required_stats=[]
 
-    date_from = request.args['from_date']
-    date_to = request.args['to_date']
+    date_from = request.args['from']
+    date_to = request.args['to']
 
     date_object_from = datetime.strptime(date_from, '%d%m%Y')
     date_object_to = datetime.strptime(date_to, '%d%m%Y')
