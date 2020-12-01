@@ -256,7 +256,7 @@ class BlockDay:
             assert self.db_block_list
             export_attributes['blocks'] = self.db_block_list
 
-        if automatic_database_export and not only_return:
+        if automatic_database_export and not only_return and not self.imported_from_db:
             try:
                 blockday_collection.insert_one(export_attributes)
                 return export_attributes
