@@ -54,7 +54,7 @@ def api_sunburst_visualisation():
         data = blockday.data_retrieval(retrieval_type=data_structures.FULL_RETRIEVAL)
         block_list = []
 
-        for something, block in blockday.instantiated_block_objects.items():
+        for block in blockday.instantiated_block_objects:
             # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
             block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
             block_list.append(block_required_stats)
