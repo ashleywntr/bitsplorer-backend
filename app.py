@@ -59,7 +59,7 @@ def api_sunburst_visualisation():
             block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
             block_list.append(block_required_stats)
 
-        blockday_required_stats.append({'name': data['_id'], 'children': block_list, 'size': data['total_val_outputs'] / 100000000})
+        blockday_required_stats.append({'name': data['_id'], 'children': block_list})
 
     json_outline = {
         'name': 'Blockday Graph',
