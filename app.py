@@ -51,7 +51,7 @@ def api_sunburst_visualisation():
         working_blockdays.append(data_structures.BlockDay(date))
 
     for blockday in working_blockdays:
-        data = blockday.data_retrieval(retrieval_type=data_structures.FULL_RETRIEVAL)
+        data = blockday.data_retrieval(retrieval_type=data_structures.BLOCK_DATA_ONLY)
         block_list = []
 
         for block in blockday.instantiated_block_objects:
