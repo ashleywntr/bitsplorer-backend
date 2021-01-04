@@ -1,32 +1,22 @@
-import time
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import as_completed
+from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime
-import traceback
+
+from pychain_enum import RetrievalType, DataStructure
+
 import json
-import logging
-
 import requests
-from pymongo import errors
+from copy import copy, deepcopy
 from pymongo import MongoClient
+from pymongo import errors
 from requests_futures.sessions import FuturesSession
-
-from flask import jsonify
-
-# logging.basicConfig(level=logging.INFO, filename='test_log')
 
 default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
 
-FULL_RETRIEVAL = 'full_retrieval'
-BLOCK_DATA_ONLY = 'block_data_only'
-OUTLINE_ONLY = 'outline_only'
-TRANSACTION = 'TRANSACTION'
-BLOCK = 'BLOCK'
+SATOSHI_MULTIPLIER = 100000000
 
-db_address = "mongodb://wntrdesktop:27017/"
+db_address = "mongodb://192.168.1.194:27017/"
 
 database_client = MongoClient(db_address)
 db_slice = 'pychain-dev'
@@ -37,7 +27,6 @@ blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
 
 automatic_database_export = True
-
 
 class BlockDay:
     def __init__(self, timestamp: datetime):
@@ -65,74 +54,65 @@ class BlockDay:
         self.avg_val_inputs = 0
         self.avg_val_outputs = 0
 
-    def data_retrieval(self, retrieval_type: str):
+    def data_retrieval(self, retrieval_type):
         try:
             database_lookup = blockday_collection.find_one(self._id)
+            assert database_lookup
         except errors.ServerSelectionTimeoutError as timeout:
             raise Exception("Can't connect to Database")
-
-        try:  # Assign values from API import
-            assert database_lookup
-            self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in
-                                       database_lookup['blocks']]
-
-            self.total_num_blocks = database_lookup['total_num_blocks']
-            self.total_num_tx: int = database_lookup['total_num_tx']
-            self.total_num_inputs: int = database_lookup['total_num_inputs']
-            self.total_num_outputs: int = database_lookup['total_num_outputs']
-            self.total_val_inputs: int = database_lookup['total_val_inputs']
-            self.total_val_fees_block: int = database_lookup['total_val_fees_block']
-            self.total_val_outputs: int = database_lookup['total_val_outputs']
-
-            self.db_block_list = database_lookup['blocks']
-            self.avg_num_inputs = database_lookup['avg_num_inputs']
-            self.avg_num_outputs = database_lookup['avg_num_outputs']
-
-            self.avg_val_inputs = database_lookup['avg_val_inputs']
-            self.avg_val_outputs = database_lookup['total_val_outputs']
-            self.imported_from_db = True
-
         except AssertionError:
             print("Assertion Error: BlockDay not in database")
-            try:
-                self.blockday_outline_api_retrieval()
-                self.retrieve_blocks(import_transactions=False)
-                return self.db_attribute_exporter()
-            except Exception as ex:
-                raise Exception('Failed to retrieve BlockDay data from API', ex)
+            self.blockday_outline_api_retrieval()
+            self.retrieve_blocks(
+                import_transactions=False)  # Only block level data is required to instantiate BlockDay
+            return self.attribute_exporter()
 
-        else:
-            if self.imported_from_db:
-                if retrieval_type == FULL_RETRIEVAL:
-                    print('Retrieving All BlockDay Data and adding to memory')
-                    self.retrieve_blocks(import_transactions=True)
-                elif retrieval_type == BLOCK_DATA_ONLY:
-                    print(f"Retrieving Blocks for BlockDay  {self._id} without transactions")
-                    self.retrieve_blocks(import_transactions=False)
-                elif retrieval_type == OUTLINE_ONLY:
-                    print("Returning Outline data of Instantiated block.")
-            else:
-                raise Exception("Data not present in database and not imported from api")
+        self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
 
-            return self.db_attribute_exporter(only_return=True)
+        self.total_num_blocks = database_lookup['total_num_blocks']
+        self.total_num_tx: int = database_lookup['total_num_tx']
+        self.total_num_inputs: int = database_lookup['total_num_inputs']
+        self.total_num_outputs: int = database_lookup['total_num_outputs']
+        self.total_val_inputs: int = database_lookup['total_val_inputs']
+        self.total_val_fees_block: int = database_lookup['total_val_fees_block']
+        self.total_val_outputs: int = database_lookup['total_val_outputs']
+
+        self.db_block_list = database_lookup['blocks']
+        self.avg_num_inputs = database_lookup['avg_num_inputs']
+        self.avg_num_outputs = database_lookup['avg_num_outputs']
+
+        self.avg_val_inputs = database_lookup['avg_val_inputs']
+        self.avg_val_outputs = database_lookup['total_val_outputs']
+        self.imported_from_db = True
+
+        if retrieval_type == RetrievalType.FULL_RETRIEVAL:
+            print('Retrieving All BlockDay Data and adding to memory')
+            self.retrieve_blocks(import_transactions=True)
+        elif retrieval_type == RetrievalType.BLOCK_DATA_ONLY:
+            print(f"Retrieving Blocks for BlockDay  {self._id} without transactions")
+            self.retrieve_blocks(import_transactions=False)
+        elif retrieval_type == RetrievalType.OUTLINE_ONLY:
+            print("Returning Outline data of Instantiated block.")
+
+        return self.attribute_exporter(only_return=True)
 
     def blockday_outline_api_retrieval(self):
-        print('Retrieving Blockday from API')
-        timestamp_corrected = self.timestamp  # + timedelta(days=1)
-        timestamp_in_milliseconds = timestamp_corrected.timestamp() * 1000
+        print('Retrieving BlockDay from API')
+
+        timestamp_in_milliseconds = self.timestamp.timestamp() * 1000
         timestamp_as_string = str(timestamp_in_milliseconds)[:-2]
         block_importer_url = f'https://blockchain.info/blocks/{timestamp_as_string}?format=json'
 
         with requests.session() as block_outline_import_session:
             request_itr = 0
-            block_data_dict = {}
+            blockday_data_dict = {}
             while True:
                 request_itr += 1
                 try:
                     session_data_json = block_outline_import_session.get(url=block_importer_url,
                                                                          headers=default_headers)
                     session_data_json.raise_for_status()
-                    block_data_dict = session_data_json.json()
+                    blockday_data_dict = session_data_json.json()
                 except Exception as ex:
                     print("Failure to instantiate block data dict. Will retry", ex)
                 else:
@@ -140,34 +120,26 @@ class BlockDay:
                 if request_itr == 250:
                     raise Exception('250 retries attempted. Failed to retrieve block data dict')
 
-        assert block_data_dict
-        self.block_outline_list = [block for block in block_data_dict['blocks']]
+        assert blockday_data_dict
+        self.block_outline_list = blockday_data_dict['blocks']
 
     def retrieve_blocks(self, import_transactions=True):
-        print('Retrieving Blocks')
         working_list = []
-
         for x in self.block_outline_list:
-            print(f"Retrieving block {x['hash']}")
-            mongo_client = MongoClient(db_address)[db_slice]['Blocks']
             try:
-                result = mongo_client.find_one(x['hash'])
+                result = blockday_collection.find_one(x['hash'])
                 assert result
-            except Exception:
+            except AssertionError as ex:
                 working_list.append(x['hash'])
             else:
-                try:
-                    block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
-                    self.instantiated_block_objects.append(block_object)
-                    print(f"Block {block_object.height} retrieved from DB")
-                except Exception as ex:
-                    print(ex)
-                    working_list.append(x['hash'])
+                block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
+                self.instantiated_block_objects.append(block_object)
+                print(f"Block {block_object.height} retrieved from DB")
 
         if working_list:
             self.retrieve_blocks_from_api(working_list)
         else:
-            print("All required values were found in Database")
+            print("All required values were retrieved from DB")
 
         if not self.imported_from_db:
             self.statistics_generation()
@@ -176,15 +148,16 @@ class BlockDay:
 
         if automatic_database_export:
             try:
-                self.db_attribute_exporter()
+                self.attribute_exporter()
             except Exception as ex:
                 print('Unable to export Blockday to DB', {ex})
 
     def retrieve_blocks_from_api(self, working_list):
         loop_count = 0
+        result_list = []
 
+        print(f'{len(working_list)} entries on {self._id} working list')
         while working_list:
-            print(f'{len(working_list)} entries on {self._id} working list')
             with FuturesSession(max_workers=100) as session:
                 futures = []
                 for block_hash in working_list:
@@ -199,29 +172,29 @@ class BlockDay:
                         else:
                             print('Other HTTP error occurred', ex)
 
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    result.raise_for_status()
-                    block_object = Block(result.json())
-                    self.instantiated_block_objects.append(block_object)
-                except requests.exceptions.HTTPError as ex:
-                    if ex.response.status_code == 429:
-                        print('API Request Limit Exceeded')
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        result.raise_for_status()
+                        parsed_result = result.json()
+                        self.instantiated_block_objects.append(Block(parsed_result))
+                    except requests.exceptions.HTTPError as ex:
+                        if ex.response.status_code == 429:
+                            print('API Request Limit Exceeded')
+                        else:
+                            print('Other HTTP error occurred', ex)
+                    except requests.exceptions.ReadTimeout as timeout:
+                        print("Request read timeout", timeout)
+                    except requests.exceptions.ConnectionError as connection_error:
+                        print("Connection Error Occured", connection_error)
                     else:
-                        print('Other HTTP error occurred', ex)
-                except requests.exceptions.ReadTimeout as timeout:
-                    print("Request read timeout", timeout)
-                except requests.exceptions.ConnectionError as connection_error:
-                    print("Connection Error Occured", connection_error)
-                else:
-                    working_list.remove(block_object.hash)
-                    print(f'{len(working_list)} entries on {self._id} working list')
+                        working_list.remove(parsed_result['hash'])
+                        print(f'{len(working_list)} entries on {self._id} working list')
 
-        print(f'Failed {len(working_list)} retrievals')
-        loop_count += 1
-        if loop_count == 15:
-            raise Exception("Failed to retrieve all values on working list")
+            print(f'Failed {len(working_list)} retrievals')
+            loop_count += 1
+            if loop_count == 15:
+                raise Exception("Failed to retrieve all values on working list")
 
     def statistics_generation(self):
         self.total_num_blocks = len(self.instantiated_block_objects)
@@ -239,7 +212,7 @@ class BlockDay:
             self.avg_val_inputs = self.total_val_inputs / self.total_num_tx
             self.avg_val_outputs = self.total_val_outputs / self.total_num_tx
 
-    def db_attribute_exporter(self, only_return=False):
+    def attribute_exporter(self, only_return=False):
         export_attributes = {}
         excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals',
                          'data_instantiated', 'cached_import', 'outline_in_db', 'db_block_list', 'timestamp'}
@@ -309,7 +282,7 @@ class Block:
             self.statistics_generation()
 
             if automatic_database_export:
-                self.db_attribute_exporter()
+                self.attribute_exporter()
         else:
             self.hash = block_attr_dict['_id']
             if transactions_required:
@@ -331,15 +304,14 @@ class Block:
 
     def retrieve_transactions_from_db(self):
         print(f'Retrieving Transactions for block {self.hash}')
-        client = MongoClient(db_address)[db_slice]["Transactions"]
-        cursor_list = client.find({'block_hash': self.hash})
+        cursor_list = transaction_collection.find({'block_hash': self.hash})
         for tx in cursor_list:
             self.tx.append(Transaction(tx, retrieved_from_db=True))
+
         print(len(self.tx), self.n_tx)
         assert len(self.tx) == self.n_tx
 
     def statistics_generation(self):
-
         for transaction in self.tx:
             self.total_num_inputs_block += transaction.vin_sz
             self.total_num_outputs_block += transaction.vout_sz
@@ -355,7 +327,7 @@ class Block:
         self.average_num_inputs_per_transaction = self.total_num_inputs_block / self.n_tx
         self.average_num_outputs_per_transaction = self.total_num_outputs_block / self.n_tx
 
-    def db_attribute_exporter(self):
+    def attribute_exporter(self):
         export_attributes = {}
         excluded_keys = {'tx', 'block_attribute_table', 'hash', 'cached_import', 'data_instantiated'}
 
@@ -365,13 +337,16 @@ class Block:
 
         export_attributes['tx'] = [x.hash for x in self.tx]
 
-        try:
-            block_collection.insert_one(export_attributes)
-            print(f"Block {self.height} Successfully Exported")
-        except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")
-        except Exception as ex:
-            print("Block Export Failed", ex)
+        if automatic_database_export:
+            try:
+                transaction_collection.insert_many([x.attribute_return() for x in self.tx])
+                block_collection.insert_one(export_attributes)
+                print(f"Block {self.height} Successfully Exported")
+            except errors.ServerSelectionTimeoutError as timeout:
+                raise Exception("Can't connect to Database")
+            except Exception as ex:
+                print("Block Export Failed", ex)
+        return export_attributes
 
     def __call__(self):
         return self
@@ -384,6 +359,7 @@ class Transaction:
         self.coinbase_transaction: bool
         self.hash = ""  # Unique hash associated with the transaction
         self._id = ""
+        self.retrieved_from_db = retrieved_from_db
 
         # Non Changing Schema Vars
         self.vin_sz: int = transaction_attr_dict['vin_sz']  # Number of inputs into the transaction
@@ -393,7 +369,7 @@ class Transaction:
         self.block_height: int = transaction_attr_dict['block_height']
         self.block_hash = transaction_attr_dict['block_hash']
         self.fee: int = transaction_attr_dict['fee']
-        self.double_spend: bool = transaction_attr_dict['double_spend']
+
         self.inputs: list = transaction_attr_dict['inputs']
         self.out: list = transaction_attr_dict['out']
 
@@ -412,7 +388,7 @@ class Transaction:
                 self.coinbase_transaction = False
 
             if automatic_database_export:
-                self.attribute_exporter()
+                self.attribute_return()
         else:
             self.hash = transaction_attr_dict['_id']
             self.id = transaction_attr_dict['_id']
@@ -429,20 +405,148 @@ class Transaction:
         for tr_output in self.out:
             self.value_outputs += tr_output['value']
 
-    def attribute_exporter(self):
+    def attribute_return(self):
         export_attributes = {}
-        excluded_keys = {'hash', 'cached_import'}
+        excluded_keys = {'hash', 'cached_import', 'retrieved_from_db'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
-        try:
-            transaction_collection.insert_one(export_attributes)
-            # print(f'Transaction {self.hash} Exported to DB')
-        except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database", timeout)
-        except errors.DuplicateKeyError:
-            print(f"Transaction {self.hash} already in Database")
+        return export_attributes
 
     def __call__(self, *args, **kwargs):
         return self
+
+
+class Address:
+    def __init__(self, address_string):
+
+        self.address = address_string
+        self._id = self.address
+        self.txs = []
+        self.tx_objects_instantiated = False
+        self.retrieved_from_db = False
+
+        self.n_tx: int = 0
+        self.total_received: int = 0
+        self.total_sent: int = 0
+        self.final_balance: int = 0
+
+    def outline_retrieval(self):
+        try:
+            database_lookup = address_collection.find_one(self._id)
+            assert database_lookup
+        except errors.ServerSelectionTimeoutError as timeout:
+            raise Exception("Can't connect to Database")
+        except AssertionError as error:
+            print("Assertion Error: No Matching Address Outline found in database")
+            self.api_outline_retrieval()
+        else:
+            self.n_tx = database_lookup['n_tx']
+            self.total_received = database_lookup['total_received']
+            self.total_sent = database_lookup['total_sent']
+            self.final_balance = database_lookup['final_balance']
+            self.txs = database_lookup['txs']
+            self.retrieved_from_db = True
+
+        return self.attribute_exporter()
+
+    def api_outline_retrieval(self):
+        address_importer_url = f"https://explorer.api.bitcoin.com/btc/v1/addr/{self.address}"
+        address_result = requests.get(url=address_importer_url, headers=default_headers)
+        address_result.raise_for_status()
+        address_data = address_result.json()
+
+        self.n_tx = address_data['txApperances']
+        self.total_received = address_data['totalReceivedSat']
+        self.total_sent = address_data['totalSentSat']
+        self.final_balance = address_data['balanceSat']
+        self.txs = address_data['transactions']
+
+        assert self.n_tx
+
+    def tx_object_instantiation(self):
+        print('Retrieving Transactions for ', self.address)
+        try:
+            self.db_tx_retrieval()
+        except Exception as exception:
+            print(f'Failed to retrieve transactions from DB {exception}')
+            self.api_tx_retrieval()
+        else:
+            self.tx_objects_instantiated = True
+
+    def api_tx_retrieval(self):
+        address_tx_importer_url = f"https://explorer.api.bitcoin.com/btc/v1/txs?address={self.address}"
+        try:
+            address_tx_result = requests.get(url=address_tx_importer_url, headers=default_headers)
+            address_tx_result.raise_for_status()
+        except requests.exceptions.HTTPError as ex:
+            if ex.response.status_code == 429:
+                print('API Request Limit Exceeded')
+            else:
+                print('Other HTTP error occurred', ex)
+        except requests.exceptions.ReadTimeout as timeout:
+            print("Request read timeout", timeout)
+        except requests.exceptions.ConnectionError as connection_error:
+            print("Connection Error Occurred", connection_error)
+
+        else:
+            address_tx_data = address_tx_result.json()
+            self.txs = []
+
+            for tx in address_tx_data['txs']:
+                conversion_dict = {'hash': tx['txid'], 'vin_sz': len(tx['vin']), 'vout_sz': len(tx['vout']), 'size': int(tx['size']),
+                                   'time': int(tx['time']), 'block_hash': tx['blockhash'],
+                                   'block_height': tx['blockheight'],
+                                   'fee': (tx['fees'] * SATOSHI_MULTIPLIER), 'inputs': [], 'out': []}
+
+                for vin in tx['vin']:
+                    conversion_dict['inputs'].append(
+                        {'value': vin['valueSat'], 'addr': vin['addr'], 'sequence': vin['sequence'], 'n': vin['n']})
+
+                for vout in tx['vout']:
+                    conversion_dict['out'].append(
+                        {'value': float(vout['value']) * SATOSHI_MULTIPLIER, 'addr': vout['scriptPubKey']['addresses'][0],
+                         'n': vout['n']})
+
+                self.txs.append(Transaction(conversion_dict, retrieved_from_db=False))
+
+    def db_tx_retrieval(self):
+        assert self.txs
+        raw_tx_list = deepcopy(self.txs)
+        self.txs = []
+        try:
+            for tx in raw_tx_list:
+                db_result = transaction_collection.find_one(tx)
+                assert db_result
+                self.txs.append(Transaction(db_result, retrieved_from_db=True))
+            assert len(self.txs) == len(raw_tx_list)
+        except AssertionError as error:
+            self.txs = raw_tx_list
+            raise Exception("Unable to retrieve all TX from DB")
+        except errors.ServerSelectionTimeoutError as timeout:
+            raise Exception("Can't connect to Database")
+
+    def attribute_exporter(self):
+        export_attributes = {}
+        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db'}
+
+        for attribute, value in vars(self).items():
+            if attribute not in excluded_keys:
+                export_attributes[attribute] = value
+
+        if not self.tx_objects_instantiated:
+            export_attributes['txs'] = self.txs
+        else:
+            export_attributes['txs'] = [tx.hash for tx in self.txs]
+
+        if automatic_database_export and not self.retrieved_from_db:
+            try:
+                address_collection.insert_one(export_attributes)
+                print(f"Address Data {self.address} Successfully Exported")
+            except errors.ServerSelectionTimeoutError as timeout:
+                raise Exception("Can't connect to Database")
+            except Exception as ex:
+                print("Address export Failed", ex)
+
+        return export_attributes

@@ -6,6 +6,11 @@ from flask_cors import CORS
 from flask_csv import send_csv
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+
+from data_structures import BlockDay, Address
+
+from pychain_enum import RetrievalType, DataStructure
+
 import json
 import traceback
 import concurrent.futures
@@ -48,15 +53,15 @@ def api_sunburst_visualisation():
     date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to-date_object_from).days + 1)]
 
     for date in date_list:
-        working_blockdays.append(data_structures.BlockDay(date))
+        working_blockdays.append(BlockDay(date))
 
     for blockday in working_blockdays:
-        data = blockday.data_retrieval(retrieval_type=data_structures.BLOCK_DATA_ONLY)
+        data = blockday.data_retrieval(retrieval_type=RetrievalType.BLOCK_DATA_ONLY)
         block_list = []
 
         for block in blockday.instantiated_block_objects:
             # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
-            block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
+            block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block}
             block_list.append(block_required_stats)
 
         blockday_required_stats.append({'name': data['_id'], 'children': block_list})
@@ -69,15 +74,14 @@ def api_sunburst_visualisation():
     return json.dumps(json_outline)
 
 
-
 @app.route('/api/csv/block')
 def api_csv_block_list():
     date_string = request.args['date']
     block_data_for_csv = []
 
     date_object_from = datetime.strptime(date_string, '%d%m%Y')
-    return_blockday = data_structures.BlockDay(date_object_from)
-    data_retrieval = return_blockday.data_retrieval(data_structures.OUTLINE_ONLY)
+    return_blockday = BlockDay(date_object_from)
+    data_retrieval = return_blockday.data_retrieval(RetrievalType.OUTLINE_ONLY)
     block_list = data_retrieval['blocks']
 
     for x in block_list:
@@ -155,8 +159,8 @@ def api_blockdays():
         print(f"Datetime assignment failed {ex}")
     else:
         try:
-            return_blockday = data_structures.BlockDay(date_object_from)
-            return_data = json.dumps((return_blockday.data_retrieval(data_structures.OUTLINE_ONLY)))
+            return_blockday = BlockDay(date_object_from)
+            return_data = json.dumps((return_blockday.data_retrieval(RetrievalType.OUTLINE_ONLY)))
         except Exception as ex:
             print('BlockDay Creation Failed', ex)
             traceback.print_exc()
@@ -193,6 +197,24 @@ def api_transactions():
     except Exception as ex:
         print(ex)
         abort(404)
+
+    return return_data
+
+
+@app.route('/api/address', methods=['GET'])
+def api_address():
+    address_hash = request.args['hash']
+    working_address = Address(address_hash)
+    return working_address.outline_retrieval()
+
+
+@app.route('/api/address/transactions', methods=['GET'])
+def api_address_transactions():
+    address_hash = request.args['hash']
+    working_address = Address(address_hash)
+    return_data = working_address.outline_retrieval()
+    working_address.tx_object_instantiation()
+    return_data['txs'] = [x.attribute_return() for x in working_address.txs]
 
     return return_data
 
