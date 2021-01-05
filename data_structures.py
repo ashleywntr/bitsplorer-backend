@@ -28,6 +28,7 @@ address_collection = database["Addresses"]
 
 automatic_database_export = True
 
+
 class BlockDay:
     def __init__(self, timestamp: datetime):
         # Properties
