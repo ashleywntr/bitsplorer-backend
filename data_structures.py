@@ -128,7 +128,7 @@ class BlockDay:
         working_list = []
         for x in self.block_outline_list:
             try:
-                result = blockday_collection.find_one(x['hash'])
+                result = block_collection.find_one(x['hash'])
                 assert result
             except AssertionError as ex:
                 working_list.append(x['hash'])
@@ -155,7 +155,6 @@ class BlockDay:
 
     def retrieve_blocks_from_api(self, working_list):
         loop_count = 0
-        result_list = []
 
         print(f'{len(working_list)} entries on {self._id} working list')
         while working_list:
