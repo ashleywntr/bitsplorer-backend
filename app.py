@@ -171,8 +171,6 @@ def api_blockdays():
             print('BlockDay Creation Failed', ex)
             traceback.print_exc()
             abort(500)
-        finally:
-            del return_blockday
         assert return_data
         return return_data
 

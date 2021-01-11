@@ -63,7 +63,7 @@ class BlockDay:
             raise Exception("Can't connect to Database")
         except AssertionError:
             print("Assertion Error: BlockDay not in database")
-            self.blockday_outline_api_retrieval()
+            self.blockday_initial_api_retrieval()
             self.retrieve_blocks(
                 import_transactions=False)  # Only block level data is required to instantiate BlockDay
             return self.attribute_exporter()
@@ -97,7 +97,7 @@ class BlockDay:
 
         return self.attribute_exporter(only_return=True)
 
-    def blockday_outline_api_retrieval(self):
+    def blockday_initial_api_retrieval(self):
         print('Retrieving BlockDay from API')
 
         timestamp_in_milliseconds = self.timestamp.timestamp() * 1000
@@ -142,10 +142,10 @@ class BlockDay:
         else:
             print("All required values were retrieved from DB")
 
+        assert self.total_num_blocks == len(self.block_outline_list)
+
         if not self.imported_from_db:
             self.statistics_generation()
-
-        assert self.total_num_blocks == len(self.block_outline_list)
 
         if automatic_database_export:
             try:
@@ -186,7 +186,7 @@ class BlockDay:
                     except requests.exceptions.ReadTimeout as timeout:
                         print("Request read timeout", timeout)
                     except requests.exceptions.ConnectionError as connection_error:
-                        print("Connection Error Occured", connection_error)
+                        print("Connection Error Occurred", connection_error)
                     else:
                         working_list.remove(parsed_result['hash'])
                         print(f'{len(working_list)} entries on {self._id} working list')
