@@ -1,11 +1,14 @@
 from flask import Flask
 from flask import abort
 from flask import request, jsonify
+from flask_executor import Executor
 from datetime import datetime, timedelta
 from flask_cors import CORS
 from flask_csv import send_csv
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+
+import requests
 
 from data_structures import BlockDay, Address
 
@@ -19,7 +22,10 @@ import gc
 import data_structures
 
 app = Flask(__name__)
+executor = Executor(app)
 CORS(app)
+
+bitcoin_abuse_token = "wZe9GYRta5RN8s32QOKDmtmMBWkDXzi68ho5LXz4WmmBgstS3sOgRv44rnLZ"
 
 
 @app.route('/')
@@ -177,8 +183,8 @@ def api_blocks():
     block_hash = request.args['hash']
     try:
         database_lookup = data_structures.block_collection.find_one(block_hash)
-        if database_lookup:
-            return_data = database_lookup
+        assert database_lookup
+        return_data = database_lookup
     except Exception as ex:
         print(ex)
         abort(404)
@@ -205,7 +211,21 @@ def api_transactions():
 def api_address():
     address_hash = request.args['hash']
     working_address = Address(address_hash)
-    return working_address.outline_retrieval()
+    address_data = working_address.outline_retrieval()
+
+    address_data['abuse_check'] = False
+    address_data['abuse_count'] = 0
+
+    try:
+        abuse_check = requests.get(url=f"https://www.bitcoinabuse.com/api/reports/check?address={address_hash}&api_token={bitcoin_abuse_token}")
+        abuse_check.raise_for_status()
+    except:
+        print('Unable to retrieve bitcoin abuse data')
+    else:
+        address_data['abuse_check'] = True
+        address_data['abuse_count'] = abuse_check.json()['count']
+
+    return address_data
 
 
 @app.route('/api/address/transactions', methods=['GET'])

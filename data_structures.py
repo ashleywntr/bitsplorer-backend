@@ -320,9 +320,9 @@ class Block:
             self.total_val_fees_block += transaction.fee
             self.total_val_outputs_block += transaction.value_outputs
 
-        self.average_val_inputs_per_transaction = self.total_val_inputs_block / self.n_tx
+        self.average_val_inputs_per_transaction = self.total_val_inputs_block / self.total_num_inputs_block
         self.average_fee_per_transaction = self.total_val_fees_block / self.n_tx
-        self.average_val_outputs_per_transaction = self.total_val_outputs_block / self.n_tx
+        self.average_val_outputs_per_transaction = self.total_val_outputs_block / self.total_num_outputs_block
 
         self.average_num_inputs_per_transaction = self.total_num_inputs_block / self.n_tx
         self.average_num_outputs_per_transaction = self.total_num_outputs_block / self.n_tx
