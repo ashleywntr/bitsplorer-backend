@@ -2,7 +2,7 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime
 
 from pychain_enum import RetrievalType, DataStructure
-import resource
+
 import json
 import requests
 from copy import copy, deepcopy

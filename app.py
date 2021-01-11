@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 
 import requests
-import resource
 
 from data_structures import BlockDay, Address
 
@@ -239,5 +238,4 @@ def api_address_transactions():
 
 
 if __name__ == '__main__':
-    resource.setrlimit(resource.RLIMIT_AS, (8196, 10240))
     app.run()
