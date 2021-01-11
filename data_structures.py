@@ -142,7 +142,7 @@ class BlockDay:
         else:
             print("All required values were retrieved from DB")
 
-        assert self.total_num_blocks == len(self.block_outline_list)
+        assert self.instantiated_block_objects == len(self.block_outline_list)
 
         if not self.imported_from_db:
             self.statistics_generation()
