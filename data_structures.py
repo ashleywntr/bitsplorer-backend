@@ -46,6 +46,7 @@ class BlockDay:
         self.total_num_tx: int = 0
         self.total_num_inputs: int = 0
         self.total_num_outputs: int = 0
+
         self.total_val_inputs: int = 0
         self.total_val_fees_block: int = 0
         self.total_val_outputs: int = 0
@@ -67,35 +68,35 @@ class BlockDay:
             self.retrieve_blocks(
                 import_transactions=False)  # Only block level data is required to instantiate BlockDay
             return self.attribute_exporter()
+        else:
+            self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
 
-        self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
+            self.total_num_blocks = database_lookup['total_num_blocks']
+            self.total_num_tx: int = database_lookup['total_num_tx']
+            self.total_num_inputs: int = database_lookup['total_num_inputs']
+            self.total_num_outputs: int = database_lookup['total_num_outputs']
+            self.total_val_inputs: int = database_lookup['total_val_inputs']
+            self.total_val_fees_block: int = database_lookup['total_val_fees_block']
+            self.total_val_outputs: int = database_lookup['total_val_outputs']
 
-        self.total_num_blocks = database_lookup['total_num_blocks']
-        self.total_num_tx: int = database_lookup['total_num_tx']
-        self.total_num_inputs: int = database_lookup['total_num_inputs']
-        self.total_num_outputs: int = database_lookup['total_num_outputs']
-        self.total_val_inputs: int = database_lookup['total_val_inputs']
-        self.total_val_fees_block: int = database_lookup['total_val_fees_block']
-        self.total_val_outputs: int = database_lookup['total_val_outputs']
+            self.db_block_list = database_lookup['blocks']
+            self.avg_num_inputs = database_lookup['avg_num_inputs']
+            self.avg_num_outputs = database_lookup['avg_num_outputs']
 
-        self.db_block_list = database_lookup['blocks']
-        self.avg_num_inputs = database_lookup['avg_num_inputs']
-        self.avg_num_outputs = database_lookup['avg_num_outputs']
+            self.avg_val_inputs = database_lookup['avg_val_inputs']
+            self.avg_val_outputs = database_lookup['total_val_outputs']
+            self.imported_from_db = True
 
-        self.avg_val_inputs = database_lookup['avg_val_inputs']
-        self.avg_val_outputs = database_lookup['total_val_outputs']
-        self.imported_from_db = True
+            if retrieval_type == RetrievalType.FULL_RETRIEVAL:
+                print('Retrieving All BlockDay Data and adding to memory')
+                self.retrieve_blocks(import_transactions=True)
+            elif retrieval_type == RetrievalType.BLOCK_DATA_ONLY:
+                print(f"Retrieving Blocks for BlockDay  {self._id} without transactions")
+                self.retrieve_blocks(import_transactions=False)
+            elif retrieval_type == RetrievalType.OUTLINE_ONLY:
+                print("Returning Outline data of Instantiated block.")
 
-        if retrieval_type == RetrievalType.FULL_RETRIEVAL:
-            print('Retrieving All BlockDay Data and adding to memory')
-            self.retrieve_blocks(import_transactions=True)
-        elif retrieval_type == RetrievalType.BLOCK_DATA_ONLY:
-            print(f"Retrieving Blocks for BlockDay  {self._id} without transactions")
-            self.retrieve_blocks(import_transactions=False)
-        elif retrieval_type == RetrievalType.OUTLINE_ONLY:
-            print("Returning Outline data of Instantiated block.")
-
-        return self.attribute_exporter(only_return=True)
+            return self.attribute_exporter(only_return=True)
 
     def blockday_initial_api_retrieval(self):
         print('Retrieving BlockDay from API')
@@ -211,8 +212,8 @@ class BlockDay:
             self.avg_num_inputs = self.total_num_inputs / self.total_num_tx
             self.avg_num_outputs = self.total_num_outputs / self.total_num_tx
 
-            self.avg_val_inputs = self.total_val_inputs / self.total_num_tx
-            self.avg_val_outputs = self.total_val_outputs / self.total_num_tx
+            self.avg_val_inputs = self.total_val_inputs / self.total_num_inputs
+            self.avg_val_outputs = self.total_val_outputs / self.total_num_outputs
 
     def attribute_exporter(self, only_return=False):
         export_attributes = {}
