@@ -67,7 +67,7 @@ class BlockDay:
             self.blockday_initial_api_retrieval()
             self.retrieve_blocks(
                 import_transactions=False)  # Only block level data is required to instantiate BlockDay
-            return self.attribute_exporter()
+            return self.attribute_exporter(only_return=True)
         else:
             self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
 
@@ -171,9 +171,7 @@ class BlockDay:
                     except Exception as ex:
                         print('Block getter raised exception', ex)
                     except requests.exceptions.HTTPError as ex:
-                        if ex.response.status_code == 429:
-                            print('API Request Limit Exceeded')
-                        else:
+                        if not ex.response.status_code == 429:
                             print('Other HTTP error occurred', ex)
 
                 for future in as_completed(futures):
@@ -183,9 +181,7 @@ class BlockDay:
                         parsed_result = result.json()
                         self.instantiated_block_objects.append(Block(parsed_result))
                     except requests.exceptions.HTTPError as ex:
-                        if ex.response.status_code == 429:
-                            print('API Request Limit Exceeded')
-                        else:
+                        if not ex.response.status_code == 429:
                             print('Other HTTP error occurred', ex)
                     except requests.exceptions.ReadTimeout as timeout:
                         print("Request read timeout", timeout)
@@ -197,8 +193,8 @@ class BlockDay:
 
             print(f'Failed {len(working_list)} retrievals')
             loop_count += 1
-            if loop_count == 15:
-                raise Exception("Failed to retrieve all values on working list")
+            if loop_count == 30:
+                raise Exception(f"Failed to retrieve all values on working list after {loop_count} tries")
 
     def statistics_generation(self):
         self.total_num_blocks = len(self.instantiated_block_objects)
@@ -485,9 +481,7 @@ class Address:
             address_tx_result = requests.get(url=address_tx_importer_url, headers=default_headers)
             address_tx_result.raise_for_status()
         except requests.exceptions.HTTPError as ex:
-            if ex.response.status_code == 429:
-                print('API Request Limit Exceeded')
-            else:
+            if not ex.response.status_code == 429:
                 print('Other HTTP error occurred', ex)
         except requests.exceptions.ReadTimeout as timeout:
             print("Request read timeout", timeout)
