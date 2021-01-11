@@ -143,7 +143,8 @@ class BlockDay:
         else:
             print("All required values were retrieved from DB")
 
-        print(f"Instantiated block objects {len(self.instantiated_block_objects)} block outline list {len(self.block_outline_list)}")
+        print(
+            f"Instantiated block objects {len(self.instantiated_block_objects)} block outline list {len(self.block_outline_list)}")
 
         assert len(self.instantiated_block_objects) == len(self.block_outline_list)
 
@@ -217,8 +218,8 @@ class BlockDay:
 
     def attribute_exporter(self, only_return=False):
         export_attributes = {}
-        excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals',
-                         'data_instantiated', 'cached_import', 'outline_in_db', 'db_block_list', 'timestamp'}
+        excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals', 'cached_import',
+                         'db_block_list', 'timestamp', 'imported_from_db'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
@@ -498,7 +499,8 @@ class Address:
             self.txs = []
 
             for tx in address_tx_data['txs']:
-                conversion_dict = {'hash': tx['txid'], 'vin_sz': len(tx['vin']), 'vout_sz': len(tx['vout']), 'size': int(tx['size']),
+                conversion_dict = {'hash': tx['txid'], 'vin_sz': len(tx['vin']), 'vout_sz': len(tx['vout']),
+                                   'size': int(tx['size']),
                                    'time': int(tx['time']), 'block_hash': tx['blockhash'],
                                    'block_height': tx['blockheight'],
                                    'fee': (tx['fees'] * SATOSHI_MULTIPLIER), 'inputs': [], 'out': []}
@@ -509,7 +511,8 @@ class Address:
 
                 for vout in tx['vout']:
                     conversion_dict['out'].append(
-                        {'value': float(vout['value']) * SATOSHI_MULTIPLIER, 'addr': vout['scriptPubKey']['addresses'][0],
+                        {'value': float(vout['value']) * SATOSHI_MULTIPLIER,
+                         'addr': vout['scriptPubKey']['addresses'][0],
                          'n': vout['n']})
 
                 self.txs.append(Transaction(conversion_dict, retrieved_from_db=False))
