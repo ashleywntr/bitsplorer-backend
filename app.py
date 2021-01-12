@@ -236,6 +236,29 @@ def api_address_transactions():
 
     return return_data
 
+@app.route('/api/currency', methods=['GET'])
+def api_currency_date():
+    retrieval_date_from = request.args['date_from']
+    retrieval_date_to = request.args['date_to']
+
+    currency_data = {}
+
+    coindesk_url = f'https://api.coindesk.com/v1/bpi/historical/close.json?start={retrieval_date_from}&end={retrieval_date_to}'
+
+    print('Retrieving Currency Information from', coindesk_url)
+
+    currency_api = requests.get(coindesk_url, headers=data_structures.default_headers)
+    currency_api.raise_for_status()
+
+    base_data = {key: {'USD': value} for key, value in currency_api.json()['bpi'].items()}
+    print(base_data)
+
+    ##TODO: Additional Currencies
+
+    currency_data = base_data
+
+    return currency_data
+
 
 if __name__ == '__main__':
     app.run()

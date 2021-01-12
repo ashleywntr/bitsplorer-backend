@@ -84,7 +84,7 @@ class BlockDay:
             self.avg_num_outputs = database_lookup['avg_num_outputs']
 
             self.avg_val_inputs = database_lookup['avg_val_inputs']
-            self.avg_val_outputs = database_lookup['total_val_outputs']
+            self.avg_val_outputs = database_lookup['avg_val_outputs']
             self.imported_from_db = True
 
             if retrieval_type == RetrievalType.FULL_RETRIEVAL:
