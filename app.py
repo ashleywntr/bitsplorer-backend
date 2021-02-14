@@ -2,7 +2,7 @@ from flask import Flask
 from flask import abort
 from flask import request, jsonify
 from flask_executor import Executor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from flask_cors import CORS
 from flask_csv import send_csv
 from concurrent.futures import ThreadPoolExecutor
@@ -249,15 +249,33 @@ def api_currency_date():
     currency_request.raise_for_status()
     currency_data = currency_request.json()['bpi'].items()
 
-    exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
-    print('Retrieving Exchange Rate information from', exchange_rate_url)
-    exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
-    exchange_rate_request.raise_for_status()
-    exchange_rate_data = exchange_rate_request.json()['rates']
+    try:
+        exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
+        print('Retrieving Exchange Rate information from', exchange_rate_url)
+        exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
+        exchange_rate_request.raise_for_status()
+        exchange_rate_data = exchange_rate_request.json()['rates']
+        assert exchange_rate_data
+    except AssertionError as ae:
+        date_object_from = datetime.fromisoformat(retrieval_date_from)
+        date_object_to = datetime.fromisoformat(retrieval_date_to)
+        non_weekend_delta = timedelta(-2)
+
+        new_object_from = date_object_from + non_weekend_delta
+        new_object_to = date_object_to + non_weekend_delta
+
+        new_str_from = str(new_object_from)[:-9]
+        new_str_to = str(new_object_to)[:-9]
+
+        exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={new_str_from}&end_at={new_str_to}&base=USD&symbols={','.join(currency_list)}"
+        print('Retrieving Backup Information from days prior', exchange_rate_url)
+        exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
+        exchange_rate_request.raise_for_status()
+        exchange_rate_data = exchange_rate_request.json()['rates']
 
     print(exchange_rate_data)
     consolidated_data = {}
-    substitute_date = list(exchange_rate_data.keys())[0]
+    substitute_date = list(exchange_rate_data.keys())[-1]
     for date, usd_value in currency_data:
         try:
             consolidated_data[date] = {
