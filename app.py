@@ -255,7 +255,7 @@ def api_currency_date():
         exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
         exchange_rate_request.raise_for_status()
         exchange_rate_data = exchange_rate_request.json()['rates']
-        assert exchange_rate_data
+        assert list(exchange_rate_data.keys())[0]
     except AssertionError as ae:
         date_object_from = datetime.fromisoformat(retrieval_date_from)
         date_object_to = datetime.fromisoformat(retrieval_date_to)
@@ -275,7 +275,7 @@ def api_currency_date():
 
     print(exchange_rate_data)
     consolidated_data = {}
-    substitute_date = list(exchange_rate_data.keys())[-1]
+    substitute_date = list(exchange_rate_data.keys())[0]
     for date, usd_value in currency_data:
         try:
             consolidated_data[date] = {
