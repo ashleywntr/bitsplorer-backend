@@ -248,15 +248,15 @@ def api_currency_date():
     currency_request = requests.get(coindesk_url, headers=data_structures.default_headers)
     currency_request.raise_for_status()
     currency_data = currency_request.json()['bpi'].items()
+    exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
+    print('Retrieving Exchange Rate information from', exchange_rate_url)
+    exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
+    exchange_rate_request.raise_for_status()
+    exchange_rate_data = exchange_rate_request.json()['rates']
 
     try:
-        exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
-        print('Retrieving Exchange Rate information from', exchange_rate_url)
-        exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
-        exchange_rate_request.raise_for_status()
-        exchange_rate_data = exchange_rate_request.json()['rates']
-        assert list(exchange_rate_data.keys())[0]
-    except AssertionError as ae:
+        test_value = list(exchange_rate_data.keys())[0]
+    except  IndexError as ie:
         date_object_from = datetime.fromisoformat(retrieval_date_from)
         date_object_to = datetime.fromisoformat(retrieval_date_to)
         non_weekend_delta = timedelta(-2)
