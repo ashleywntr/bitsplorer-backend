@@ -259,7 +259,7 @@ def api_currency_date():
     except  IndexError as ie:
         date_object_from = datetime.fromisoformat(retrieval_date_from)
         date_object_to = datetime.fromisoformat(retrieval_date_to)
-        non_weekend_delta = timedelta(-2)
+        non_weekend_delta = timedelta(2)
 
         new_object_from = date_object_from + non_weekend_delta
         new_object_to = date_object_to + non_weekend_delta
