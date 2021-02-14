@@ -155,6 +155,7 @@ def api_csv_transaction_list():
 
 @app.route('/api/blockdays', methods=['GET'])
 def api_blockdays():
+    print(f"Blockday request: {request.args['date']}")
     gc.collect()
     date_string = request.args['date']
     return_data = {}
@@ -238,26 +239,41 @@ def api_address_transactions():
 
 @app.route('/api/currency', methods=['GET'])
 def api_currency_date():
+    currency_list = ['GBP', 'EUR', 'CNY']
     retrieval_date_from = request.args['date_from']
     retrieval_date_to = request.args['date_to']
 
-    currency_data = {}
-
     coindesk_url = f'https://api.coindesk.com/v1/bpi/historical/close.json?start={retrieval_date_from}&end={retrieval_date_to}'
-
     print('Retrieving Currency Information from', coindesk_url)
+    currency_request = requests.get(coindesk_url, headers=data_structures.default_headers)
+    currency_request.raise_for_status()
+    currency_data = currency_request.json()['bpi'].items()
 
-    currency_api = requests.get(coindesk_url, headers=data_structures.default_headers)
-    currency_api.raise_for_status()
+    exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
+    print('Retrieving Exchange Rate information from', exchange_rate_url)
+    exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
+    exchange_rate_request.raise_for_status()
+    exchange_rate_data = exchange_rate_request.json()['rates']
 
-    base_data = {key: {'USD': value} for key, value in currency_api.json()['bpi'].items()}
-    print(base_data)
+    print(exchange_rate_data)
+    consolidated_data = {}
+    substitute_date = list(exchange_rate_data.keys())[0]
+    for date, usd_value in currency_data:
+        try:
+            consolidated_data[date] = {
+                'USD': usd_value,
+            }
+            for currency in currency_list:
+                consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[date][currency]), 2)
+        except KeyError:
+            print(f'Data Missing for {date} (Weekend or Bank Holiday)')
+            consolidated_data[date] = {
+                'USD': usd_value,
+            }
+            for currency in currency_list:
+                consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[substitute_date][currency]), 2)
 
-    ##TODO: Additional Currencies
-
-    currency_data = base_data
-
-    return currency_data
+    return consolidated_data
 
 
 if __name__ == '__main__':

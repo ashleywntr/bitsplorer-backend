@@ -340,6 +340,13 @@ class Block:
         if automatic_database_export:
             try:
                 transaction_collection.insert_many([x.attribute_return() for x in self.tx])
+                print(f"Transactions for Block {self.height} Successfully Exported")
+            except errors.ServerSelectionTimeoutError as timeout:
+                raise Exception("Can't connect to Database")
+            except Exception as ex:
+                print("Transaction Export Exception", ex)
+
+            try:
                 block_collection.insert_one(export_attributes)
                 print(f"Block {self.height} Successfully Exported")
             except errors.ServerSelectionTimeoutError as timeout:
@@ -440,7 +447,7 @@ class Address:
             raise Exception("Can't connect to Database")
         except AssertionError as error:
             print("Assertion Error: No Matching Address Outline found in database")
-            self.api_outline_retrieval()
+            self.bitcoin_com_api_outline_retrieval()
         else:
             self.n_tx = database_lookup['n_tx']
             self.total_received = database_lookup['total_received']
@@ -451,7 +458,7 @@ class Address:
 
         return self.attribute_exporter()
 
-    def api_outline_retrieval(self):
+    def bitcoin_com_api_outline_retrieval(self):
         address_importer_url = f"https://explorer.api.bitcoin.com/btc/v1/addr/{self.address}"
         address_result = requests.get(url=address_importer_url, headers=default_headers)
         address_result.raise_for_status()
@@ -471,11 +478,11 @@ class Address:
             self.db_tx_retrieval()
         except Exception as exception:
             print(f'Failed to retrieve transactions from DB {exception}')
-            self.api_tx_retrieval()
+            self.bitcoin_com_api_tx_retrieval()
         else:
             self.tx_objects_instantiated = True
 
-    def api_tx_retrieval(self):
+    def bitcoin_com_api_tx_retrieval(self):
         address_tx_importer_url = f"https://explorer.api.bitcoin.com/btc/v1/txs?address={self.address}"
         try:
             address_tx_result = requests.get(url=address_tx_importer_url, headers=default_headers)
