@@ -470,8 +470,6 @@ class Address:
         self.final_balance = address_data['balanceSat']
         self.txs = address_data['transactions']
 
-        assert self.n_tx
-
     def tx_object_instantiation(self):
         print('Retrieving Transactions for ', self.address)
         try:
