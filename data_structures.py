@@ -1,5 +1,6 @@
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime
+from math import floor
 
 from pychain_enum import RetrievalType, DataStructure
 
@@ -8,6 +9,7 @@ import requests
 from copy import copy, deepcopy
 from pymongo import MongoClient
 from pymongo import errors
+from time import sleep
 from requests_futures.sessions import FuturesSession
 
 default_headers = {
@@ -16,7 +18,7 @@ default_headers = {
 
 SATOSHI_MULTIPLIER = 100000000
 
-db_address = "mongodb://192.168.1.194:27017/"
+db_address = "mongodb://192.168.0.18:27017/"
 
 database_client = MongoClient(db_address)
 db_slice = 'pychain-dev'
@@ -345,7 +347,6 @@ class Block:
                 raise Exception("Can't connect to Database")
             except Exception as ex:
                 print("Transaction Export Exception", ex)
-
             try:
                 block_collection.insert_one(export_attributes)
                 print(f"Block {self.height} Successfully Exported")
@@ -374,7 +375,10 @@ class Transaction:
         self.size: int = transaction_attr_dict['size']
         self.time: int = transaction_attr_dict['time']
         self.block_height: int = transaction_attr_dict['block_height']
-        self.block_hash = transaction_attr_dict['block_hash']
+        try:
+            self.block_hash = transaction_attr_dict['block_hash']
+        except KeyError:
+            print("Block hash inclusion skipped")
         self.fee: int = transaction_attr_dict['fee']
 
         self.inputs: list = transaction_attr_dict['inputs']
@@ -476,45 +480,42 @@ class Address:
             self.db_tx_retrieval()
         except Exception as exception:
             print(f'Failed to retrieve transactions from DB {exception}')
-            self.bitcoin_com_api_tx_retrieval()
+            self.blockchain_info_api_tx_retrieval()
         else:
             self.tx_objects_instantiated = True
 
-    def bitcoin_com_api_tx_retrieval(self):
-        address_tx_importer_url = f"https://explorer.api.bitcoin.com/btc/v1/txs?address={self.address}"
-        try:
-            address_tx_result = requests.get(url=address_tx_importer_url, headers=default_headers)
-            address_tx_result.raise_for_status()
-        except requests.exceptions.HTTPError as ex:
-            if not ex.response.status_code == 429:
-                print('Other HTTP error occurred', ex)
-        except requests.exceptions.ReadTimeout as timeout:
-            print("Request read timeout", timeout)
-        except requests.exceptions.ConnectionError as connection_error:
-            print("Connection Error Occurred", connection_error)
-
-        else:
-            address_tx_data = address_tx_result.json()
-            self.txs = []
-
-            for tx in address_tx_data['txs']:
-                conversion_dict = {'hash': tx['txid'], 'vin_sz': len(tx['vin']), 'vout_sz': len(tx['vout']),
-                                   'size': int(tx['size']),
-                                   'time': int(tx['time']), 'block_hash': tx['blockhash'],
-                                   'block_height': tx['blockheight'],
-                                   'fee': (tx['fees'] * SATOSHI_MULTIPLIER), 'inputs': [], 'out': []}
-
-                for vin in tx['vin']:
-                    conversion_dict['inputs'].append(
-                        {'value': vin['valueSat'], 'addr': vin['addr'], 'sequence': vin['sequence'], 'n': vin['n']})
-
-                for vout in tx['vout']:
-                    conversion_dict['out'].append(
-                        {'value': float(vout['value']) * SATOSHI_MULTIPLIER,
-                         'addr': vout['scriptPubKey']['addresses'][0],
-                         'n': vout['n']})
-
-                self.txs.append(Transaction(conversion_dict, retrieved_from_db=False))
+    def blockchain_info_api_tx_retrieval(self):
+        tx_list = []
+        base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
+        for x in range(floor(self.n_tx / 50)+1):
+            instance_url = base_address_tx_importer_url + f"?offset={x*50}"
+            try:
+                address_tx_result = requests.get(url=instance_url, headers=default_headers)
+                address_tx_result.raise_for_status()
+            except requests.exceptions.HTTPError as ex:
+                if not ex.response.status_code == 429:
+                    print('Other HTTP error occurred', ex)
+            except requests.exceptions.ReadTimeout as timeout:
+                print("Request read timeout", timeout)
+            except requests.exceptions.ConnectionError as connection_error:
+                print("Connection Error Occurred", connection_error)
+            else:
+                tx_list.extend(address_tx_result.json()['txs'])
+            sleep(10)
+        required_len = len(self.txs)
+        self.txs = []
+        for tx in tx_list:
+            try:
+                self.txs.append(Transaction(tx, retrieved_from_db=False))
+            except KeyError:
+                print(f"Key error in transaction {tx['hash']}")
+                standalone_tx_url = f"https://blockchain.info/rawtx/{tx['hash']}"
+                tx_info = requests.get(standalone_tx_url, headers=default_headers)
+                tx_info.raise_for_status()
+                self.txs.append(Transaction(tx_info.json(), retrieved_from_db=False))
+                print("TX imported from API")
+        print(f"{len(self.txs)} of {required_len} retrieved")
+        assert len(self.txs) == required_len
 
     def db_tx_retrieval(self):
         assert self.txs
@@ -525,6 +526,8 @@ class Address:
                 db_result = transaction_collection.find_one(tx)
                 assert db_result
                 self.txs.append(Transaction(db_result, retrieved_from_db=True))
+
+            print(f"{len(self.txs)} of {len(raw_tx_list)} TX found in DB")
             assert len(self.txs) == len(raw_tx_list)
         except AssertionError as error:
             self.txs = raw_tx_list
@@ -547,7 +550,7 @@ class Address:
 
         if automatic_database_export and not self.retrieved_from_db:
             try:
-                address_collection.insert_one(export_attributes)
+                address_collection.save(export_attributes)
                 print(f"Address Data {self.address} Successfully Exported")
             except errors.ServerSelectionTimeoutError as timeout:
                 raise Exception("Can't connect to Database")

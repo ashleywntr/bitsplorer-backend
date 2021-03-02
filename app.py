@@ -234,8 +234,8 @@ def api_address_transactions():
     return_data = working_address.outline_retrieval()
     working_address.tx_object_instantiation()
     return_data['txs'] = [x.attribute_return() for x in working_address.txs]
-
     return return_data
+
 
 @app.route('/api/currency', methods=['GET'])
 def api_currency_date():
