@@ -26,14 +26,15 @@ executor = Executor(app)
 CORS(app)
 
 bitcoin_abuse_token = "wZe9GYRta5RN8s32QOKDmtmMBWkDXzi68ho5LXz4WmmBgstS3sOgRv44rnLZ"
+currency_list = ['GBP', 'EUR', 'CNY']
 
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def hello_world():
     return 'Hello World!'
 
 
-@app.route('/api')
+@app.route('/api', methods=['GET'])
 def hello_api_world():
     return 'Hello api World!'
 
@@ -67,7 +68,7 @@ def api_sunburst_visualisation():
 
         for block in blockday.instantiated_block_objects:
             # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
-            block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block / 100000000}
+            block_required_stats = {'name': str(block.height), 'size': round(block.total_val_outputs_block / 100000000, 2)}
             block_list.append(block_required_stats)
 
         blockday_required_stats.append({'name': data['_id'], 'children': block_list})
@@ -80,7 +81,7 @@ def api_sunburst_visualisation():
     return json.dumps(json_outline)
 
 
-@app.route('/api/csv/block')
+@app.route('/api/csv/block', methods=['GET'])
 def api_csv_block_list():
     date_string = request.args['date']
     block_data_for_csv = []
@@ -119,7 +120,17 @@ def api_csv_block_list():
                     writer_kwargs={"extrasaction": "ignore"})
 
 
-@app.route('/api/csv/transactions')
+@app.route('/api/csv/currency', methods=['GET'])
+def api_csv_currency_report():
+    fields_list = [
+        date
+    ]
+    fields_list.extend(currency_list)
+
+
+
+
+@app.route('/api/csv/transactions', methods=['GET'])
 def api_csv_transaction_list():
     search_hash = request.args['hash']
     transaction_data_for_csv = []
@@ -239,7 +250,6 @@ def api_address_transactions():
 
 @app.route('/api/currency', methods=['GET'])
 def api_currency_date():
-    currency_list = ['GBP', 'EUR', 'CNY']
     retrieval_date_from = request.args['date_from']
     retrieval_date_to = request.args['date_to']
 
