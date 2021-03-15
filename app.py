@@ -1,25 +1,19 @@
-from flask import Flask
-from flask import abort
-from flask import request, jsonify
-from flask_executor import Executor
-from datetime import datetime, timedelta, date
-from flask_cors import CORS
-from flask_csv import send_csv
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import as_completed
-
-import requests
-
-from data_structures import BlockDay, Address
-
-from pychain_enum import RetrievalType, DataStructure
-
+import gc
 import json
 import traceback
-import concurrent.futures
-import gc
+from datetime import datetime, timedelta, date
+
+import requests
+from flask import Flask
+from flask import abort
+from flask import request
+from flask_cors import CORS
+from flask_csv import send_csv
+from flask_executor import Executor
 
 import data_structures
+from data_structures import BlockDay, Address
+from pychain_enum import RetrievalType
 
 app = Flask(__name__)
 executor = Executor(app)
@@ -59,8 +53,8 @@ def api_sunburst_visualisation():
 
     date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to-date_object_from).days + 1)]
 
-    for date in date_list:
-        working_blockdays.append(BlockDay(date))
+    for each in date_list:
+        working_blockdays.append(BlockDay(each))
 
     for blockday in working_blockdays:
         data = blockday.data_retrieval(retrieval_type=RetrievalType.BLOCK_DATA_ONLY)
@@ -122,12 +116,18 @@ def api_csv_block_list():
 
 @app.route('/api/csv/currency', methods=['GET'])
 def api_csv_currency_report():
+
     fields_list = [
-        date
+        'date', 'USD'
     ]
     fields_list.extend(currency_list)
 
+    retrieval_date_from = request.args['date_from']
+    retrieval_date_to = request.args['date_to']
+    currency_json_data = currency_data_retriever(retrieval_date_from, retrieval_date_to)
 
+    currency_csv_data = [dict(value, date=key) for key, value in currency_json_data.items()]
+    return send_csv(currency_csv_data, filename=f"Currency Data {str(retrieval_date_from), str(retrieval_date_to)}.csv", fields=fields_list)
 
 
 @app.route('/api/csv/transactions', methods=['GET'])
@@ -252,12 +252,16 @@ def api_address_transactions():
 def api_currency_date():
     retrieval_date_from = request.args['date_from']
     retrieval_date_to = request.args['date_to']
+    return currency_data_retriever(retrieval_date_from, retrieval_date_to)
 
+
+def currency_data_retriever(retrieval_date_from, retrieval_date_to):
     coindesk_url = f'https://api.coindesk.com/v1/bpi/historical/close.json?start={retrieval_date_from}&end={retrieval_date_to}'
     print('Retrieving Currency Information from', coindesk_url)
     currency_request = requests.get(coindesk_url, headers=data_structures.default_headers)
     currency_request.raise_for_status()
     currency_data = currency_request.json()['bpi'].items()
+
     exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
     print('Retrieving Exchange Rate information from', exchange_rate_url)
     exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
