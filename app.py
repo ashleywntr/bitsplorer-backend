@@ -80,7 +80,7 @@ def api_csv_block_list():
     date_string = request.args['date']
     block_data_for_csv = []
 
-    date_object_from = datetime.strptime(date_string, '%d%m%Y')
+    date_object_from = datetime.strptime(date_string, '%Y-%m-%d')
     return_blockday = BlockDay(date_object_from)
     data_retrieval = return_blockday.data_retrieval(RetrievalType.OUTLINE_ONLY)
     block_list = data_retrieval['blocks']
