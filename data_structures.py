@@ -35,7 +35,7 @@ class BlockDay:
     def __init__(self, timestamp: datetime):
         # Properties
         self.timestamp = timestamp
-        self._id = timestamp.strftime('%d%m%Y')
+        self._id = timestamp.strftime('%Y-%m-%d')
 
         self.block_outline_list = []
         self.instantiated_block_objects = []
