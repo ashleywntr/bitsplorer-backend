@@ -1,5 +1,5 @@
 from concurrent.futures import as_completed, ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from math import floor
 
 from pychain_enum import RetrievalType, DataStructure
@@ -34,7 +34,7 @@ automatic_database_export = True
 class BlockDay:
     def __init__(self, timestamp: datetime):
         # Properties
-        self.timestamp = timestamp
+        self.timestamp = timestamp.replace(tzinfo=timezone.utc)
         self._id = timestamp.strftime('%Y-%m-%d')
 
         self.block_outline_list = []
@@ -101,11 +101,12 @@ class BlockDay:
             return self.attribute_exporter(only_return=True)
 
     def blockday_initial_api_retrieval(self):
-        print('Retrieving BlockDay from API')
+        print(f'Retrieving BlockDay {self._id} from API')
 
         timestamp_in_milliseconds = self.timestamp.timestamp() * 1000
         timestamp_as_string = str(timestamp_in_milliseconds)[:-2]
         block_importer_url = f'https://blockchain.info/blocks/{timestamp_as_string}?format=json'
+        print(f'Url for {self._id}: {block_importer_url}')
 
         with requests.session() as block_outline_import_session:
             request_itr = 0
