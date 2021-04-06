@@ -62,7 +62,7 @@ def api_sunburst_visualisation():
 
         for block in blockday.instantiated_block_objects:
             # transaction_required_stats = [{'item': transaction.hash, 'value': transaction.value_outputs} for transaction in block.tx]
-            block_required_stats = {'name': str(block.height), 'size': round(block.total_val_outputs_block / 100000000, 2)}
+            block_required_stats = {'name': str(block.height), 'size': block.total_val_outputs_block}
             block_list.append(block_required_stats)
 
         blockday_required_stats.append({'name': data['_id'], 'children': block_list})

@@ -105,8 +105,8 @@ class BlockDay:
 
         timestamp_in_milliseconds = self.timestamp.timestamp() * 1000
         timestamp_as_string = str(timestamp_in_milliseconds)[:-2]
-        block_importer_url = f'https://blockchain.info/blocks/{timestamp_as_string}?format=json'
-        print(f'Url for {self._id}: {block_importer_url}')
+        blockday_outline_importer_url = f'https://blockchain.info/blocks/{timestamp_as_string}?format=json'
+        print(f'Url for {self._id}: {blockday_outline_importer_url}')
 
         with requests.session() as block_outline_import_session:
             request_itr = 0
@@ -114,7 +114,7 @@ class BlockDay:
             while True:
                 request_itr += 1
                 try:
-                    session_data_json = block_outline_import_session.get(url=block_importer_url,
+                    session_data_json = block_outline_import_session.get(url=blockday_outline_importer_url,
                                                                          headers=default_headers)
                     session_data_json.raise_for_status()
                     blockday_data_dict = session_data_json.json()
@@ -413,6 +413,8 @@ class Transaction:
             try:
                 self.value_inputs += tr_input['prev_out']['value']
             except KeyError:
+                pass
+            except TypeError:
                 pass
         for tr_output in self.out:
             self.value_outputs += tr_output['value']
