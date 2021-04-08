@@ -1,7 +1,9 @@
 import gc
 import json
 import traceback
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
+from requests_futures.sessions import FuturesSession
+from concurrent.futures import as_completed
 
 import requests
 from flask import Flask
@@ -262,48 +264,71 @@ def currency_data_retriever(retrieval_date_from, retrieval_date_to):
     currency_request.raise_for_status()
     currency_data = currency_request.json()['bpi'].items()
 
-    exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={retrieval_date_from}&end_at={retrieval_date_to}&base=USD&symbols={','.join(currency_list)}"
-    print('Retrieving Exchange Rate information from', exchange_rate_url)
-    exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
-    exchange_rate_request.raise_for_status()
-    exchange_rate_data = exchange_rate_request.json()['rates']
+    date_object_from = datetime.fromisoformat(retrieval_date_from)
+    date_object_to = datetime.fromisoformat(retrieval_date_to)
 
-    try:
-        test_value = list(exchange_rate_data.keys())[0]
-    except IndexError as ie:
-        date_object_from = datetime.fromisoformat(retrieval_date_from)
-        date_object_to = datetime.fromisoformat(retrieval_date_to)
-        non_weekend_delta = timedelta(2)
+    date_object_from.replace(tzinfo=timezone.utc)
+    date_object_to.replace(tzinfo=timezone.utc)
 
-        new_object_from = date_object_from + non_weekend_delta
-        new_object_to = date_object_to + non_weekend_delta
+    date_list = [(date_object_from + timedelta(days=x)).strftime('%Y-%m-%d') for x in range((date_object_to-date_object_from).days + 1)]
+    exchange_base_url = "https://api.ratesapi.io/api/"
 
-        new_str_from = str(new_object_from)[:-9]
-        new_str_to = str(new_object_to)[:-9]
+    retrieval_list = []
+    loop_count = 0
 
-        exchange_rate_url = f"https://api.exchangeratesapi.io/history?start_at={new_str_from}&end_at={new_str_to}&base=USD&symbols={','.join(currency_list)}"
-        print('Retrieving Backup Information from days prior', exchange_rate_url)
-        exchange_rate_request = requests.get(exchange_rate_url, headers=data_structures.default_headers)
-        exchange_rate_request.raise_for_status()
-        exchange_rate_data = exchange_rate_request.json()['rates']
+    while date_list:
+        with FuturesSession(max_workers=5) as session:
+            futures = []
+            for each in date_list:
+                exchange_rate_retrieval_url = f"{exchange_base_url}{each}?base=USD&symbols={','.join(currency_list)}"
+                print(f"Retrieving Exchange Rate Data from {exchange_rate_retrieval_url}")
+                try:
+                    futures.append(session.get(url=exchange_rate_retrieval_url, headers=data_structures.default_headers, timeout=15))
+                except Exception as ex:
+                    print('Exchange Rate Retrieval Exception', ex)
+                except requests.exceptions.HTTPError as ex:
+                    if not ex.response.status_code == 429:
+                        print('Other HTTP error occurred', ex)
 
-    print(exchange_rate_data)
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    result.raise_for_status()
+                    parsed_data = result.json()
+                except requests.exceptions.HTTPError as ex:
+                    if not ex.response.status_code == 429:
+                        print('Other HTTP error occurred', ex)
+                except requests.exceptions.ReadTimeout as timeout:
+                    print("Request read timeout", timeout)
+                except requests.exceptions.ConnectionError as connection_error:
+                    print("Connection Error Occurred", connection_error)
+                else:
+                    response_date = parsed_data['date']
+                    print(f"Date from request: {response_date}")
+                    original_date = result.url[28:38]
+                    if original_date == response_date:
+                        retrieval_list.append(parsed_data)
+                        date_list.remove(response_date)
+                    else:
+                        print("Non trading date found.")
+                        parsed_data['date'] = original_date
+                        date_list.remove(original_date)
+                        retrieval_list.append(parsed_data)
+                    print(f'{len(date_list)} entries on currency request working list')
+
+        print(f'Failed {len(date_list)} retrievals')
+        loop_count += 1
+        if loop_count == 5:
+            raise Exception(f"Failed to retrieve all values on date list after {loop_count} tries")
+
+    exchange_rate_data = {entry['date']: entry['rates'] for entry in retrieval_list}
     consolidated_data = {}
-    substitute_date = list(exchange_rate_data.keys())[0]
     for date, usd_value in currency_data:
-        try:
-            consolidated_data[date] = {
-                'USD': usd_value,
-            }
-            for currency in currency_list:
-                consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[date][currency]), 2)
-        except KeyError:
-            print(f'Data Missing for {date} (Weekend or Bank Holiday)')
-            consolidated_data[date] = {
-                'USD': usd_value,
-            }
-            for currency in currency_list:
-                consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[substitute_date][currency]), 2)
+        consolidated_data[date] = {
+            'USD': usd_value,
+        }
+        for currency in currency_list:
+            consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[date][currency]), 2)
 
     return consolidated_data
 
