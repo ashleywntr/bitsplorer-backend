@@ -1,9 +1,8 @@
 import gc
 import json
 import traceback
-from datetime import datetime, timedelta, date, timezone
-from requests_futures.sessions import FuturesSession
 from concurrent.futures import as_completed
+from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask
@@ -12,6 +11,7 @@ from flask import request
 from flask_cors import CORS
 from flask_csv import send_csv
 from flask_executor import Executor
+from requests_futures.sessions import FuturesSession
 
 import data_structures
 from data_structures import BlockDay, Address
@@ -42,10 +42,9 @@ def api_welcome_stats():
 
 @app.route('/api/visualisation/sunburst', methods=['GET'])
 def api_sunburst_visualisation():
-
     working_blockdays = []
 
-    blockday_required_stats=[]
+    blockday_required_stats = []
 
     date_from = request.args['from']
     date_to = request.args['to']
@@ -53,7 +52,7 @@ def api_sunburst_visualisation():
     date_object_from = datetime.strptime(date_from, '%Y-%m-%d')
     date_object_to = datetime.strptime(date_to, '%Y-%m-%d')
 
-    date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to-date_object_from).days + 1)]
+    date_list = [date_object_from + timedelta(days=x) for x in range((date_object_to - date_object_from).days + 1)]
 
     for each in date_list:
         working_blockdays.append(BlockDay(each))
@@ -118,7 +117,6 @@ def api_csv_block_list():
 
 @app.route('/api/csv/currency', methods=['GET'])
 def api_csv_currency_report():
-
     fields_list = [
         'date', 'USD'
     ]
@@ -129,7 +127,8 @@ def api_csv_currency_report():
     currency_json_data = currency_data_retriever(retrieval_date_from, retrieval_date_to)
 
     currency_csv_data = [dict(value, date=key) for key, value in currency_json_data.items()]
-    return send_csv(currency_csv_data, filename=f"Currency Data {str(retrieval_date_from), str(retrieval_date_to)}.csv", fields=fields_list)
+    return send_csv(currency_csv_data, filename=f"Currency Data {str(retrieval_date_from), str(retrieval_date_to)}.csv",
+                    fields=fields_list)
 
 
 @app.route('/api/csv/transactions', methods=['GET'])
@@ -229,7 +228,8 @@ def api_address():
     address_data['abuse_count'] = 0
 
     try:
-        abuse_check = requests.get(url=f"https://www.bitcoinabuse.com/api/reports/check?address={address_hash}&api_token={bitcoin_abuse_token}")
+        abuse_check = requests.get(
+            url=f"https://www.bitcoinabuse.com/api/reports/check?address={address_hash}&api_token={bitcoin_abuse_token}")
         abuse_check.raise_for_status()
     except:
         print('Unable to retrieve bitcoin abuse data')
@@ -270,7 +270,8 @@ def currency_data_retriever(retrieval_date_from, retrieval_date_to):
     date_object_from.replace(tzinfo=timezone.utc)
     date_object_to.replace(tzinfo=timezone.utc)
 
-    date_list = [(date_object_from + timedelta(days=x)).strftime('%Y-%m-%d') for x in range((date_object_to-date_object_from).days + 1)]
+    date_list = [(date_object_from + timedelta(days=x)).strftime('%Y-%m-%d') for x in
+                 range((date_object_to - date_object_from).days + 1)]
     exchange_base_url = "https://api.ratesapi.io/api/"
 
     retrieval_list = []
@@ -283,7 +284,8 @@ def currency_data_retriever(retrieval_date_from, retrieval_date_to):
                 exchange_rate_retrieval_url = f"{exchange_base_url}{each}?base=USD&symbols={','.join(currency_list)}"
                 print(f"Retrieving Exchange Rate Data from {exchange_rate_retrieval_url}")
                 try:
-                    futures.append(session.get(url=exchange_rate_retrieval_url, headers=data_structures.default_headers, timeout=15))
+                    futures.append(session.get(url=exchange_rate_retrieval_url, headers=data_structures.default_headers,
+                                               timeout=15))
                 except Exception as ex:
                     print('Exchange Rate Retrieval Exception', ex)
                 except requests.exceptions.HTTPError as ex:

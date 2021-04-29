@@ -1,16 +1,15 @@
-from concurrent.futures import as_completed, ThreadPoolExecutor
+from concurrent.futures import as_completed
+from copy import deepcopy
 from datetime import datetime, timezone
 from math import floor
+from time import sleep
 
-from pychain_enum import RetrievalType, DataStructure
-
-import json
 import requests
-from copy import copy, deepcopy
 from pymongo import MongoClient
 from pymongo import errors
-from time import sleep
 from requests_futures.sessions import FuturesSession
+
+from pychain_enum import RetrievalType
 
 default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -21,14 +20,14 @@ SATOSHI_MULTIPLIER = 100000000
 db_address = "mongodb://192.168.0.18:27017/"
 
 database_client = MongoClient(db_address)
-db_slice = 'pychain-dev'
+db_slice = 'pychain-dev'  # Can be altered to correspond to / create new databases within Mongo
 database = database_client[db_slice]
 transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
 blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
 
-automatic_database_export = True
+automatic_database_export = True  # Default value for the 'attribute exporter' functions. Disabling will prevent export to DB
 
 
 class BlockDay:
@@ -39,7 +38,7 @@ class BlockDay:
 
         self.block_outline_list = []
         self.instantiated_block_objects = []
-        self.failed_retrievals = ['Initialise fake value as there is no do before while loop']
+        self.failed_retrievals = ['Initialise fake value to prevent exception']
 
         self.imported_from_db = False
         self.db_block_list = []
@@ -61,18 +60,18 @@ class BlockDay:
     def data_retrieval(self, retrieval_type):
         try:
             database_lookup = blockday_collection.find_one(self._id)
-            assert database_lookup
+            assert database_lookup  # Assert that Blockday has been found in DB
         except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")
-        except AssertionError:
+            raise Exception("Can't connect to Database")  # Catch connection error
+        except AssertionError:  # Catch assertion failure upon successful connection
             print("Assertion Error: BlockDay not in database")
             self.blockday_initial_api_retrieval()
             self.retrieve_blocks(
                 import_transactions=False)  # Only block level data is required to instantiate BlockDay
-            return self.attribute_exporter(only_return=True)
+            return self.attribute_exporter(only_return=True)  ## Return attributes of class without exporting to DB
         else:
             self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
-
+            # Assign data to class fields
             self.total_num_blocks = database_lookup['total_num_blocks']
             self.total_num_tx: int = database_lookup['total_num_tx']
             self.total_num_inputs: int = database_lookup['total_num_inputs']
@@ -100,9 +99,9 @@ class BlockDay:
 
             return self.attribute_exporter(only_return=True)
 
-    def blockday_initial_api_retrieval(self):
+    def blockday_initial_api_retrieval(self):  # Retrieve the outline of a day's worth of information from the API
         print(f'Retrieving BlockDay {self._id} from API')
-
+        # Convert supplied timestamp into milliseconds for API retrieval
         timestamp_in_milliseconds = self.timestamp.timestamp() * 1000
         timestamp_as_string = str(timestamp_in_milliseconds)[:-2]
         blockday_outline_importer_url = f'https://blockchain.info/blocks/{timestamp_as_string}?format=json'
@@ -122,14 +121,14 @@ class BlockDay:
                     print("Failure to instantiate block data dict. Will retry", ex)
                 else:
                     break
-                if request_itr == 250:
+                if request_itr == 50:
                     raise Exception('250 retries attempted. Failed to retrieve block data dict')
 
-        assert blockday_data_dict
+        assert blockday_data_dict  # Assert that the data is present
         self.block_outline_list = blockday_data_dict['blocks']
 
-    def retrieve_blocks(self, import_transactions=True):
-        working_list = []
+    def retrieve_blocks(self, import_transactions=True):  # Retrieve Blocks - determine whether from API or DB
+        working_list = []  # Will only be written to if blocks are missing from DB
         for x in self.block_outline_list:
             try:
                 result = block_collection.find_one(x['hash'])
@@ -149,7 +148,8 @@ class BlockDay:
         print(
             f"Instantiated block objects {len(self.instantiated_block_objects)} block outline list {len(self.block_outline_list)}")
 
-        assert len(self.instantiated_block_objects) == len(self.block_outline_list)
+        assert len(self.instantiated_block_objects) == len(self.block_outline_list)  # Check whether the number of
+        # instantiated block objects matches the length of the retrieval list.
 
         if not self.imported_from_db:
             self.statistics_generation()
@@ -160,10 +160,9 @@ class BlockDay:
             except Exception as ex:
                 print('Unable to export Blockday to DB', {ex})
 
-    def retrieve_blocks_from_api(self, working_list):
+    def retrieve_blocks_from_api(self, working_list):  # Begin retrieval of Block hashes present in working_list
         loop_count = 0
-
-        print(f'{len(working_list)} entries on {self._id} working list')
+        print(f'Beginning retrieval of {len(working_list)} entries on {self._id} working list')
         while working_list:
             with FuturesSession(max_workers=100) as session:
                 futures = []
@@ -172,27 +171,28 @@ class BlockDay:
                     try:
                         futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
                     except Exception as ex:
-                        print('Block getter raised exception', ex)
-                    except requests.exceptions.HTTPError as ex:
+                        print('Exception in Block Retrieval', ex)
+                    except requests.exceptions.HTTPError as ex:  # Ignore API overload related errors
                         if not ex.response.status_code == 429:
-                            print('Other HTTP error occurred', ex)
+                            print('Other HTTP error occurred in request', ex)
 
-                for future in as_completed(futures):
+                for future in as_completed(futures):  # Process responses as soon as they are retrieved
                     try:
-                        result = future.result()
-                        result.raise_for_status()
-                        parsed_result = result.json()
-                        self.instantiated_block_objects.append(Block(parsed_result))
+                        result = future.result()  # Parse future object back to Requests' response object
+                        result.raise_for_status()  # Raise exception if status not 200 normal
+                        parsed_result = result.json()  # Interpret response data as JSON
+                        self.instantiated_block_objects.append(Block(parsed_result))  # Instantiate Block object and
+                        # append to self block list
                     except requests.exceptions.HTTPError as ex:
                         if not ex.response.status_code == 429:
-                            print('Other HTTP error occurred', ex)
+                            print('Other HTTP error occurred in response', ex)
                     except requests.exceptions.ReadTimeout as timeout:
-                        print("Request read timeout", timeout)
+                        print("Response read timeout", timeout)
                     except requests.exceptions.ConnectionError as connection_error:
                         print("Connection Error Occurred", connection_error)
                     else:
-                        working_list.remove(parsed_result['hash'])
-                        print(f'{len(working_list)} entries on {self._id} working list')
+                        working_list.remove(parsed_result['hash'])  # Remove entry from list if present in response
+                        print(f'{len(working_list)} entries remaining on {self._id} working list')
 
             print(f'Failed {len(working_list)} retrievals')
             loop_count += 1
@@ -215,7 +215,8 @@ class BlockDay:
             self.avg_val_inputs = self.total_val_inputs / self.total_num_inputs
             self.avg_val_outputs = self.total_val_outputs / self.total_num_outputs
 
-    def attribute_exporter(self, only_return=False):
+    def attribute_exporter(self, only_return=False):  # Generates dict of attributes for encoding to web response.
+        # Default behaviour is to also export to DB.
         export_attributes = {}
         excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals', 'cached_import',
                          'db_block_list', 'timestamp', 'imported_from_db'}
@@ -244,12 +245,10 @@ class BlockDay:
 
 class Block:
     def __init__(self, block_attr_dict, retrieved_from_db=False, transactions_required=True):
-        # Changing Schema Vars
+        # Can't be initialised with actual values immediately
         self.hash = ""
         self._id = ""
         self.tx = []
-
-        # Non Changing Schema Vars
 
         self.time: int = block_attr_dict['time']  # Timestamp of the block (unix format)
         self.fee: int = block_attr_dict['fee']
@@ -276,12 +275,14 @@ class Block:
         self.average_num_inputs_per_transaction = 0
         self.average_num_outputs_per_transaction = 0
 
-        if not retrieved_from_db:
+        if not retrieved_from_db:  # If block data is new then perform all of the necessary initialisation steps
             self.hash: str = block_attr_dict['hash']
             self._id = self.hash
+
             for tx in block_attr_dict['tx']:
                 tx['block_hash'] = self.hash
             self.tx = [Transaction(x) for x in block_attr_dict['tx']]
+
             self.statistics_generation()
 
             if automatic_database_export:
@@ -340,7 +341,8 @@ class Block:
 
         export_attributes['tx'] = [x.hash for x in self.tx]
 
-        if automatic_database_export:
+        if automatic_database_export:  # Block responsible for exporting transaction information as both are included
+            # in the same API response, and a batch export can take place
             try:
                 transaction_collection.insert_many([x.attribute_return() for x in self.tx])
                 print(f"Transactions for Block {self.height} Successfully Exported")
@@ -364,13 +366,11 @@ class Block:
 class Transaction:
     def __init__(self, transaction_attr_dict: dict, retrieved_from_db=False):
 
-        # Changing Schema Vars
         self.coinbase_transaction: bool
         self.hash = ""  # Unique hash associated with the transaction
         self._id = ""
         self.retrieved_from_db = retrieved_from_db
 
-        # Non Changing Schema Vars
         self.vin_sz: int = transaction_attr_dict['vin_sz']  # Number of inputs into the transaction
         self.vout_sz: int = transaction_attr_dict['vout_sz']  # number of outputs from the transaction
         self.size: int = transaction_attr_dict['size']
@@ -490,8 +490,8 @@ class Address:
     def blockchain_info_api_tx_retrieval(self):
         tx_list = []
         base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
-        for x in range(floor(self.n_tx / 50)+1):
-            instance_url = base_address_tx_importer_url + f"?offset={x*50}"
+        for x in range(floor(self.n_tx / 50) + 1):  # Divide total count of transactions into multiples of 50
+            instance_url = base_address_tx_importer_url + f"?offset={x * 50}"
             try:
                 address_tx_result = requests.get(url=instance_url, headers=default_headers)
                 address_tx_result.raise_for_status()
@@ -510,7 +510,7 @@ class Address:
         for tx in tx_list:
             try:
                 self.txs.append(Transaction(tx, retrieved_from_db=False))
-            except KeyError:
+            except KeyError:  # If transaction wasn't included in initial mass import, retrieve manually
                 print(f"Key error in transaction {tx['hash']}")
                 standalone_tx_url = f"https://blockchain.info/rawtx/{tx['hash']}"
                 tx_info = requests.get(standalone_tx_url, headers=default_headers)
@@ -525,7 +525,7 @@ class Address:
         raw_tx_list = deepcopy(self.txs)
         self.txs = []
         try:
-            for tx in raw_tx_list:
+            for tx in raw_tx_list:  # Retrieve TX from DB if present
                 db_result = transaction_collection.find_one(tx)
                 assert db_result
                 self.txs.append(Transaction(db_result, retrieved_from_db=True))
@@ -559,5 +559,6 @@ class Address:
                 raise Exception("Can't connect to Database")
             except Exception as ex:
                 print("Address export Failed", ex)
+        # TODO: Transaction export functionality
 
         return export_attributes
