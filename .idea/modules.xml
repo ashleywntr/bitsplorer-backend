@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/py-chain.iml" filepath="$PROJECT_DIR$/.idea/py-chain.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/bitsplorer-backend.iml" filepath="$PROJECT_DIR$/.idea/bitsplorer-backend.iml" />
     </modules>
   </component>
 </project>

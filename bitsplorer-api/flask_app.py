@@ -15,7 +15,7 @@ from requests_futures.sessions import FuturesSession
 
 import data_structures
 from data_structures import BlockDay, Address
-from pychain_enum import RetrievalType
+from project_enum import RetrievalType
 
 app = Flask(__name__)
 executor = Executor(app)
