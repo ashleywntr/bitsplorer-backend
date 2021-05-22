@@ -125,7 +125,7 @@ class BlockDay:
                     raise Exception('250 retries attempted. Failed to retrieve block data dict')
 
         assert blockday_data_dict  # Assert that the data is present
-        self.block_outline_list = blockday_data_dict['blocks']
+        self.block_outline_list = blockday_data_dict
 
     def retrieve_blocks(self, import_transactions=True):  # Retrieve Blocks - determine whether from API or DB
         working_list = []  # Will only be written to if blocks are missing from DB
