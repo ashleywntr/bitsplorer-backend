@@ -264,75 +264,62 @@ def currency_data_retriever(retrieval_date_from, retrieval_date_to):
     currency_request.raise_for_status()
     currency_data = currency_request.json()['bpi'].items()
 
-    date_object_from = datetime.fromisoformat(retrieval_date_from)
-    date_object_to = datetime.fromisoformat(retrieval_date_to)
+    exchange_rate_data = exchange_data_retrieval(retrieval_date_from, retrieval_date_to)
+    consolidated_data = {}
+    for working_date, usd_value in currency_data:
+        consolidated_data[working_date] = {
+            'USD': usd_value,
+        }
+        exchange_date = working_date
+        while exchange_date not in exchange_rate_data:
+            exchange_date_object = datetime.fromisoformat(exchange_date).replace(tzinfo=timezone.utc)
+            subtracted_date = (exchange_date_object - timedelta(days=1))
+            exchange_date = subtracted_date.strftime('%Y-%m-%d')
+
+        for currency in currency_list:
+            if currency in exchange_rate_data[exchange_date]:
+                consolidated_data[working_date][currency] = round(float(usd_value) * float(exchange_rate_data[exchange_date][currency]), 2)
+    return consolidated_data
+
+
+def exchange_data_retrieval(date_from, date_to):
+    date_object_from = datetime.fromisoformat(date_from)
+    date_object_to = datetime.fromisoformat(date_to)
 
     date_object_from.replace(tzinfo=timezone.utc)
     date_object_to.replace(tzinfo=timezone.utc)
 
-    date_list = [(date_object_from + timedelta(days=x)).strftime('%Y-%m-%d') for x in
-                 range((date_object_to - date_object_from).days + 1)]
-    exchange_base_url = "https://api.ratesapi.io/api/"
+    from_weekday = date_object_from.weekday()
 
-    retrieval_list = []
-    loop_count = 0
+    if from_weekday > 4:
+        date_object_from = date_object_from - timedelta(days=from_weekday-4)
+        date_from = date_object_from.strftime('%Y-%m-%d')
+        print('Exchange retrieval updated to proceeding Friday')
+    try:
+        exchange_base_url = "https://freecurrencyapi.net/api/v1/rates"
+        exchange_api_key="72741890-bc06-11eb-81e3-cd95bf08b9a9"
+        exchange_rate_retrieval_url = f"{exchange_base_url}?base_currency=USD&date_from={date_from}&date_to={date_to}&apikey={exchange_api_key}"
 
-    while date_list:
-        with FuturesSession(max_workers=5) as session:
-            futures = []
-            for each in date_list:
-                exchange_rate_retrieval_url = f"{exchange_base_url}{each}?base=USD&symbols={','.join(currency_list)}"
-                print(f"Retrieving Exchange Rate Data from {exchange_rate_retrieval_url}")
-                try:
-                    futures.append(session.get(url=exchange_rate_retrieval_url, headers=data_structures.default_headers,
-                                               timeout=15))
-                except Exception as ex:
-                    print('Exchange Rate Retrieval Exception', ex)
-                except requests.exceptions.HTTPError as ex:
-                    if not ex.response.status_code == 429:
-                        print('Other HTTP error occurred', ex)
+        print(f"Retrieving Exchange Rate Data from {exchange_rate_retrieval_url}")
+        exchange_headers = data_structures.default_headers
+        exchange_headers['apikey'] = exchange_api_key
+        exchange_request = requests.get(url=exchange_rate_retrieval_url, headers=exchange_headers, timeout=15)
+        exchange_request.raise_for_status()
+        exchange_rate_data = exchange_request.json()['data']
 
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    result.raise_for_status()
-                    parsed_data = result.json()
-                except requests.exceptions.HTTPError as ex:
-                    if not ex.response.status_code == 429:
-                        print('Other HTTP error occurred', ex)
-                except requests.exceptions.ReadTimeout as timeout:
-                    print("Request read timeout", timeout)
-                except requests.exceptions.ConnectionError as connection_error:
-                    print("Connection Error Occurred", connection_error)
-                else:
-                    response_date = parsed_data['date']
-                    print(f"Date from request: {response_date}")
-                    original_date = result.url[28:38]
-                    if original_date == response_date:
-                        retrieval_list.append(parsed_data)
-                        date_list.remove(response_date)
-                    else:
-                        print("Non trading date found.")
-                        parsed_data['date'] = original_date
-                        date_list.remove(original_date)
-                        retrieval_list.append(parsed_data)
-                    print(f'{len(date_list)} entries on currency request working list')
-
-        print(f'Failed {len(date_list)} retrievals')
-        loop_count += 1
-        if loop_count == 5:
-            raise Exception(f"Failed to retrieve all values on date list after {loop_count} tries")
-
-    exchange_rate_data = {entry['date']: entry['rates'] for entry in retrieval_list}
-    consolidated_data = {}
-    for date, usd_value in currency_data:
-        consolidated_data[date] = {
-            'USD': usd_value,
-        }
-        for currency in currency_list:
-            consolidated_data[date][currency] = round(float(usd_value) * float(exchange_rate_data[date][currency]), 2)
-
-    return consolidated_data
+    except requests.exceptions.HTTPError as ex:
+        if ex.response.status_code == 500:
+            date_object_from = date_object_from - timedelta(days=1)
+            date_from = date_object_from.strftime('%Y-%m-%d')
+            return exchange_data_retrieval(date_from, date_to)
+        if not ex.response.status_code == 429:
+            print('Other HTTP error occurred', ex)
+    except requests.exceptions.ReadTimeout as timeout:
+        print("Request read timeout", timeout)
+    except requests.exceptions.ConnectionError as connection_error:
+        print("Connection Error Occurred", connection_error)
+    else:
+        return exchange_rate_data
 
 
 if __name__ == '__main__':
