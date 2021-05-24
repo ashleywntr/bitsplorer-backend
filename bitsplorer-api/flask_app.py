@@ -45,6 +45,11 @@ def hello_world():
     page_content += ("\n</div>")
     return page_content
 
+
+@app.route('/api', methods=['GET'])
+def hello_api_world():
+    return 'Hello World!'
+
 @app.route('/api/visualisation/sunburst', methods=['GET'])
 def api_sunburst_visualisation():
     working_blockdays = []
