@@ -180,21 +180,14 @@ def api_blockdays():
     print(f"Blockday request: {request.args['date']}")
     gc.collect()
     date_string = request.args['date']
-    return_data = {}
 
     try:
-        date_object_from = datetime.strptime(date_string, '%Y-%m-%d')
-    except Exception as ex:
-        print(f"Datetime assignment failed {ex}")
+        date_object = datetime.strptime(date_string, '%Y-%m-%d')
+    except ValueError:
+        abort(400)
     else:
-        try:
-            return_blockday = BlockDay(date_object_from)
-            return_data = json.dumps((return_blockday.data_retrieval(RetrievalType.OUTLINE_ONLY)))
-        except Exception as ex:
-            print('BlockDay Creation Failed', ex)
-            traceback.print_exc()
-            abort(500)
-        assert return_data
+        return_blockday = BlockDay(date_object)
+        return_data = json.dumps((return_blockday.data_retrieval(RetrievalType.OUTLINE_ONLY)))
         return return_data
 
 
