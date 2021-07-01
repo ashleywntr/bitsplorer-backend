@@ -15,7 +15,7 @@ default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
 
-SATOSHI_MULTIPLIER = 100000000
+SATOSHI_MULTIPLIER = 10**8
 
 db_address = "mongodb://192.168.0.18:27017/"
 
@@ -26,6 +26,7 @@ transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
 blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
+abuse_collection = database["Abuse"]
 
 automatic_database_export = True  # Default value for the 'attribute exporter' functions. Disabling will prevent export to DB
 
@@ -38,7 +39,6 @@ class BlockDay:
 
         self.block_outline_list = []
         self.instantiated_block_objects = []
-        self.failed_retrievals = ['Initialise fake value to prevent exception']
 
         self.imported_from_db = False
         self.db_block_list = []
@@ -61,8 +61,6 @@ class BlockDay:
         try:
             database_lookup = blockday_collection.find_one(self._id)
             assert database_lookup  # Assert that Blockday has been found in DB
-        except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")  # Catch connection error
         except AssertionError:  # Catch assertion failure upon successful connection
             print("Assertion Error: BlockDay not in database")
             self.blockday_initial_api_retrieval()
@@ -346,15 +344,11 @@ class Block:
             try:
                 transaction_collection.insert_many([x.attribute_return() for x in self.tx])
                 print(f"Transactions for Block {self.height} Successfully Exported")
-            except errors.ServerSelectionTimeoutError as timeout:
-                raise Exception("Can't connect to Database")
             except Exception as ex:
                 print("Transaction Export Exception", ex)
             try:
                 block_collection.insert_one(export_attributes)
                 print(f"Block {self.height} Successfully Exported")
-            except errors.ServerSelectionTimeoutError as timeout:
-                raise Exception("Can't connect to Database")
             except Exception as ex:
                 print("Block Export Failed", ex)
         return export_attributes
@@ -446,12 +440,12 @@ class Address:
         self.total_sent: int = 0
         self.final_balance: int = 0
 
+        self.abuse_store
+
     def outline_retrieval(self):
         try:
             database_lookup = address_collection.find_one(self._id)
             assert database_lookup
-        except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")
         except AssertionError as error:
             print("Assertion Error: No Matching Address Outline found in database")
             self.bitcoin_com_api_outline_retrieval()
@@ -535,8 +529,6 @@ class Address:
         except AssertionError as error:
             self.txs = raw_tx_list
             raise Exception("Unable to retrieve all TX from DB")
-        except errors.ServerSelectionTimeoutError as timeout:
-            raise Exception("Can't connect to Database")
 
     def attribute_exporter(self):
         export_attributes = {}
@@ -556,9 +548,37 @@ class Address:
                 address_collection.save(export_attributes)
                 print(f"Address Data {self.address} Successfully Exported")
             except errors.ServerSelectionTimeoutError as timeout:
-                raise Exception("Can't connect to Database")
+                print("Address export Database Timeout")
             except Exception as ex:
                 print("Address export Failed", ex)
         # TODO: Transaction export functionality
+
+        return export_attributes
+
+
+class AbuseReport:
+    def __init__(self, abuse_dict):
+        self.address: str = abuse_dict['address']
+        self.source: str = abuse_dict['source']
+        self.notes: str = abuse_dict['notes']
+        self.date: datetime = abuse_dict['date']
+
+        self.retrieved_from_db = False
+
+    def attribute_exporter(self):
+        export_attributes = {}
+        excluded_keys = {}
+
+        for attribute, value in vars(self).items():
+            if attribute not in excluded_keys:
+                export_attributes[attribute] = value
+
+        if automatic_database_export and not self.retrieved_from_db:
+            try:
+                abuse_collection.save(export_attributes)
+            except errors.ServerSelectionTimeoutError as timeout:
+                print("Abuse export Database Timeout")
+            except Exception as ex:
+                print("Abuse export Failed", ex)
 
         return export_attributes

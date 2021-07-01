@@ -42,6 +42,9 @@ def hello_world():
     page_content += "\n<h4> Currency Examples </h4>"
     page_content += '\n<a href="../api/currency?date_from=2020-07-19&date_to=2020-07-31"> Currency JSON Request </a><br>'
     page_content += '\n<a href="../api/csv/currency?date_from=2020-05-07&date_to=2020-05-11"> Currency CSV Request </a>'
+
+    page_content += '\n<h4> POST Forms </h4>'
+    page_content += '\n<a href="../api/post/test/flagging/address"> Address Flagging Form</a>'
     page_content += ("\n</div>")
     return page_content
 
@@ -230,9 +233,12 @@ def api_address():
     address_data['abuse_check'] = False
     address_data['abuse_count'] = 0
 
+    abuse_url = f"https://www.bitcoinabuse.com/api/reports/check?address={address_hash}&api_token={bitcoin_abuse_token}"
+
     try:
+        print(f"Retrieving abuse data from {abuse_url}")
         abuse_check = requests.get(
-            url=f"https://www.bitcoinabuse.com/api/reports/check?address={address_hash}&api_token={bitcoin_abuse_token}")
+            url=abuse_url)
         abuse_check.raise_for_status()
     except:
         print('Unable to retrieve bitcoin abuse data')
@@ -258,6 +264,35 @@ def api_currency_date():
     retrieval_date_from = request.args['date_from']
     retrieval_date_to = request.args['date_to']
     return currency_logic.currency_data_retriever(retrieval_date_from, retrieval_date_to)
+
+
+# POST
+@app.route('/api/post/test/flagging/address', methods=['GET'])
+def api_post_address_test():
+    body = ""
+    body += "<h1>Address Post Test</h1>"
+    body += '<form action="/api/post/flagging/address" method="post">'
+    body += '<label for="address_field">Address</label>'
+    body += '<input type="text" id="address_field" name="address"/><br>'
+    body += '<label for="source_field">Source</label>'
+    body += '<input type="text" id="source_field" name="source"/><br>'
+    body += '<label for="notes_field">Notes</label>'
+    body += '<input type="text" id="notes_field" name="notes"/><br>'
+    body += '<input type="submit" />'
+    body += '</form>'
+    return body
+
+
+@app.route('/api/post/flagging/address', methods=['POST'])
+def api_post_address_flag():
+    data = request.form
+    print(data)
+    body = ""
+    body += 'Form Data Received: <br>'
+    for key, value in data.items():
+        body += f'{key}: {value} <br>'
+    body += '<a href="../test/flagging/address">Return to Form</a>'
+    return body
 
 
 if __name__ == '__main__':
