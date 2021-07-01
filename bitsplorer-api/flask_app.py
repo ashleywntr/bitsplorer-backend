@@ -1,6 +1,5 @@
 import gc
 import json
-import traceback
 from datetime import datetime, timedelta
 
 import requests
@@ -45,7 +44,7 @@ def hello_world():
 
     page_content += '\n<h4> POST Forms </h4>'
     page_content += '\n<a href="../api/post/test/flagging/address"> Address Flagging Form</a>'
-    page_content += ("\n</div>")
+    page_content += "\n</div>"
     return page_content
 
 

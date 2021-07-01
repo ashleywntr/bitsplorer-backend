@@ -20,7 +20,7 @@ SATOSHI_MULTIPLIER = 10**8
 db_address = "mongodb://192.168.0.18:27017/"
 
 database_client = MongoClient(db_address)
-db_slice = 'pychain-dev'  # Can be altered to correspond to / create new databases within Mongo
+db_slice = 'BitSplorer-Dev'  # Can be altered to correspond to / create new databases within Mongo
 database = database_client[db_slice]
 transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
@@ -28,7 +28,7 @@ blockday_collection = database["BlockDays"]
 address_collection = database["Addresses"]
 abuse_collection = database["Abuse"]
 
-automatic_database_export = True  # Default value for the 'attribute exporter' functions. Disabling will prevent export to DB
+automatic_database_export = True  # Default value for 'attribute exporter'. Disabling will prevent export to DB
 
 
 class BlockDay:
@@ -65,8 +65,8 @@ class BlockDay:
             print("Assertion Error: BlockDay not in database")
             self.blockday_initial_api_retrieval()
             self.retrieve_blocks(
-                import_transactions=False)  # Only block level data is required to instantiate BlockDay
-            return self.attribute_exporter(only_return=True)  ## Return attributes of class without exporting to DB
+                import_transactions=False)  # Only block level data required to instantiate BlockDay
+            return self.attribute_exporter(only_return=True)  # Return attributes of class without exporting to DB
         else:
             self.block_outline_list = [{'height': 0, 'time': 0, 'hash': block} for block in database_lookup['blocks']]
             # Assign data to class fields
@@ -131,7 +131,7 @@ class BlockDay:
             try:
                 result = block_collection.find_one(x['hash'])
                 assert result
-            except AssertionError as ex:
+            except AssertionError:
                 working_list.append(x['hash'])
             else:
                 block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
@@ -142,9 +142,6 @@ class BlockDay:
             self.retrieve_blocks_from_api(working_list)
         else:
             print("All required values were retrieved from DB")
-
-        print(
-            f"Instantiated block objects {len(self.instantiated_block_objects)} block outline list {len(self.block_outline_list)}")
 
         assert len(self.instantiated_block_objects) == len(self.block_outline_list)  # Check whether the number of
         # instantiated block objects matches the length of the retrieval list.
@@ -227,7 +224,8 @@ class BlockDay:
             assert len(export_attributes['blocks']) == self.total_num_blocks
         except AssertionError:
             print(
-                f"({len(export_attributes['blocks'])} of {self.total_num_blocks}) instantiated in memory. Using DB list")
+                f"({len(export_attributes['blocks'])} "
+                f"of {self.total_num_blocks}) instantiated in memory. Using DB list")
             assert self.db_block_list
             export_attributes['blocks'] = self.db_block_list
 
@@ -273,7 +271,7 @@ class Block:
         self.average_num_inputs_per_transaction = 0
         self.average_num_outputs_per_transaction = 0
 
-        if not retrieved_from_db:  # If block data is new then perform all of the necessary initialisation steps
+        if not retrieved_from_db:  # If block data is new then perform initialisation steps
             self.hash: str = block_attr_dict['hash']
             self._id = self.hash
 
@@ -440,13 +438,13 @@ class Address:
         self.total_sent: int = 0
         self.final_balance: int = 0
 
-        self.abuse_store
+        self.abuse_store = {}
 
     def outline_retrieval(self):
         try:
             database_lookup = address_collection.find_one(self._id)
             assert database_lookup
-        except AssertionError as error:
+        except AssertionError:
             print("Assertion Error: No Matching Address Outline found in database")
             self.bitcoin_com_api_outline_retrieval()
         else:
@@ -465,7 +463,7 @@ class Address:
         address_result.raise_for_status()
         address_data = address_result.json()
 
-        self.n_tx = address_data['txApperances']
+        self.n_tx = address_data['txApperances']  # Typo present in API
         self.total_received = address_data['totalReceivedSat']
         self.total_sent = address_data['totalSentSat']
         self.final_balance = address_data['balanceSat']
@@ -504,7 +502,7 @@ class Address:
         for tx in tx_list:
             try:
                 self.txs.append(Transaction(tx, retrieved_from_db=False))
-            except KeyError:  # If transaction wasn't included in initial mass import, retrieve manually
+            except KeyError:  # retrieve manually
                 print(f"Key error in transaction {tx['hash']}")
                 standalone_tx_url = f"https://blockchain.info/rawtx/{tx['hash']}"
                 tx_info = requests.get(standalone_tx_url, headers=default_headers)
@@ -526,7 +524,7 @@ class Address:
 
             print(f"{len(self.txs)} of {len(raw_tx_list)} TX found in DB")
             assert len(self.txs) == len(raw_tx_list)
-        except AssertionError as error:
+        except AssertionError:
             self.txs = raw_tx_list
             raise Exception("Unable to retrieve all TX from DB")
 
@@ -547,7 +545,7 @@ class Address:
             try:
                 address_collection.save(export_attributes)
                 print(f"Address Data {self.address} Successfully Exported")
-            except errors.ServerSelectionTimeoutError as timeout:
+            except errors.ServerSelectionTimeoutError:
                 print("Address export Database Timeout")
             except Exception as ex:
                 print("Address export Failed", ex)
@@ -576,7 +574,7 @@ class AbuseReport:
         if automatic_database_export and not self.retrieved_from_db:
             try:
                 abuse_collection.save(export_attributes)
-            except errors.ServerSelectionTimeoutError as timeout:
+            except errors.ServerSelectionTimeoutError:
                 print("Abuse export Database Timeout")
             except Exception as ex:
                 print("Abuse export Failed", ex)
