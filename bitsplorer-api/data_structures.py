@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from math import floor
 from time import sleep
 
+import pymongo.errors
 import requests
 from pymongo import MongoClient
 from pymongo import errors
@@ -233,8 +234,10 @@ class BlockDay:
             try:
                 blockday_collection.insert_one(export_attributes)
                 return export_attributes
+            except pymongo.errors.WriteError:
+                print("BlockDay Write Error")
             except Exception as ex:
-                print("BlockDay Export Failed", ex)
+                print("Other BlockDay Export error occurred", ex)
         else:
             return export_attributes
 
@@ -342,8 +345,10 @@ class Block:
             try:
                 transaction_collection.insert_many([x.attribute_return() for x in self.tx])
                 print(f"Transactions for Block {self.height} Successfully Exported")
+            except pymongo.errors.WriteError:
+                print("Transaction Write Error")
             except Exception as ex:
-                print("Transaction Export Exception", ex)
+                print("Other Transaction exception occurred", ex)
             try:
                 block_collection.insert_one(export_attributes)
                 print(f"Block {self.height} Successfully Exported")
@@ -547,6 +552,8 @@ class Address:
                 print(f"Address Data {self.address} Successfully Exported")
             except errors.ServerSelectionTimeoutError:
                 print("Address export Database Timeout")
+            except pymongo.errors.WriteError:
+                print("Transaction Write Error")
             except Exception as ex:
                 print("Address export Failed", ex)
         # TODO: Transaction export functionality
