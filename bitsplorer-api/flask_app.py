@@ -12,7 +12,7 @@ from flask_executor import Executor
 
 import currency_logic
 import data_structures
-from data_structures import BlockDay, Address
+from data_structures import BlockDay, Address, AbuseReport
 from project_enum import RetrievalType
 
 app = Flask(__name__)
@@ -286,9 +286,12 @@ def api_post_address_test():
 def api_post_address_flag():
     data = request.form
     print(data)
+
+    abuse_object = AbuseReport(data)
+
     body = ""
-    body += 'Form Data Received: <br>'
-    for key, value in data.items():
+    body += 'Abuse Data Received: <br>'
+    for key, value in abuse_object.attribute_exporter():
         body += f'{key}: {value} <br>'
     body += '<a href="../test/flagging/address">Return to Form</a>'
     return body
