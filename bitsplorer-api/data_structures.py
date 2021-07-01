@@ -17,10 +17,10 @@ default_headers = {
 
 SATOSHI_MULTIPLIER = 10**8
 
-db_address = "mongodb://192.168.0.18:27017/"
+db_address = "mongodb://192.168.1.249:27017/"
 
 database_client = MongoClient(db_address)
-db_slice = 'BitSplorer-Dev'  # Can be altered to correspond to / create new databases within Mongo
+db_slice = 'pychain-dev'  # Can be altered to correspond to / create new databases within Mongo
 database = database_client[db_slice]
 transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
