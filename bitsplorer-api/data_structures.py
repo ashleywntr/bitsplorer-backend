@@ -571,7 +571,7 @@ class AbuseReport:
 
     def attribute_exporter(self):
         export_attributes = {}
-        excluded_keys = {}
+        excluded_keys = {'retrieved_from_db', '_id'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
@@ -584,5 +584,7 @@ class AbuseReport:
                 print("Abuse export Database Timeout")
             except Exception as ex:
                 print("Abuse export Failed", ex)
+
+        print('Abuse export attributes', export_attributes)
 
         return export_attributes

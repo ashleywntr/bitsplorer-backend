@@ -277,6 +277,7 @@ def api_post_address_test():
     body += '<input type="text" id="source_field" name="source"/><br>'
     body += '<label for="notes_field">Notes</label>'
     body += '<input type="text" id="notes_field" name="notes"/><br>'
+    body += '<input type="date" id="date_field" name="date"/><br>'
     body += '<input type="submit" />'
     body += '</form>'
     return body
@@ -293,7 +294,7 @@ def api_post_address_flag():
 
     body = ""
     body += 'Abuse Data Received: <br>'
-    for key, value in abuse_object.attribute_exporter():
+    for key, value in abuse_object.attribute_exporter().items():
         body += f'{key}: {value} <br>'
     body += '<a href="../test/flagging/address">Return to Form</a>'
     return body
