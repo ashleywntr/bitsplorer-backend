@@ -16,7 +16,7 @@ default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
 
-SATOSHI_MULTIPLIER = 10**8
+SATOSHI_MULTIPLIER = 10 ** 8
 
 db_address = "mongodb://192.168.1.249:27017/"
 
@@ -443,7 +443,7 @@ class Address:
         self.total_sent: int = 0
         self.final_balance: int = 0
 
-        self.abuse_store = {}
+        self.native_abuse_data = []
 
     def outline_retrieval(self):
         try:
@@ -458,6 +458,7 @@ class Address:
             self.total_sent = database_lookup['total_sent']
             self.final_balance = database_lookup['final_balance']
             self.txs = database_lookup['txs']
+            self.db_abuse_retrieval()
             self.retrieved_from_db = True
 
         return self.attribute_exporter()
@@ -533,13 +534,23 @@ class Address:
             self.txs = raw_tx_list
             raise Exception("Unable to retrieve all TX from DB")
 
+    def db_abuse_retrieval(self):
+        try:
+            native_abuse = abuse_collection.find({'address': self.address})
+        except Exception as ex:
+            print('Native abuse check failed', ex)
+        else:
+            self.native_abuse_data = [AbuseReport(each, True) for each in native_abuse]
+
     def attribute_exporter(self):
         export_attributes = {}
-        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db'}
+        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db', 'native_abuse_data'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
+
+        export_attributes['native_abuse_data'] = [each.attribute_exporter() for each in self.native_abuse_data]
 
         if not self.tx_objects_instantiated:
             export_attributes['txs'] = self.txs
@@ -561,21 +572,26 @@ class Address:
 
 
 class AbuseReport:
-    def __init__(self, abuse_dict):
+    def __init__(self, abuse_dict: dict, retrieved_from_db: bool = False):
+        self.retrieved_from_db = retrieved_from_db
+
         self.address: str = abuse_dict['address']
         self.source: str = abuse_dict['source']
         self.notes: str = abuse_dict['notes']
-        self.date: datetime = datetime.strptime(abuse_dict['date'], '%Y-%m-%d')
-
-        self.retrieved_from_db = False
+        if self.retrieved_from_db:
+            self.date = abuse_dict['date']
+        else:
+            self.date: datetime = datetime.strptime(abuse_dict['date'], '%Y-%m-%d')
 
     def attribute_exporter(self):
         export_attributes = {}
-        excluded_keys = {'retrieved_from_db', '_id'}
+        excluded_keys = {'retrieved_from_db', '_id', 'date'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
+
+        export_attributes['date'] = self.date.strftime('%Y-%m-%d')
 
         if automatic_database_export and not self.retrieved_from_db:
             try:
@@ -584,7 +600,5 @@ class AbuseReport:
                 print("Abuse export Database Timeout")
             except Exception as ex:
                 print("Abuse export Failed", ex)
-
-        print('Abuse export attributes', export_attributes)
 
         return export_attributes

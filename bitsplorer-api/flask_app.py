@@ -239,7 +239,7 @@ def api_address():
         abuse_check = requests.get(
             url=abuse_url)
         abuse_check.raise_for_status()
-    except:
+    except Exception:
         print('Unable to retrieve bitcoin abuse data')
     else:
         address_data['abuse_check'] = True
