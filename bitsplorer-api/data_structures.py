@@ -557,7 +557,6 @@ class Address:
             except Exception as ex:
                 print("Address export Failed", ex)
         # TODO: Transaction export functionality
-
         return export_attributes
 
 
@@ -566,7 +565,7 @@ class AbuseReport:
         self.address: str = abuse_dict['address']
         self.source: str = abuse_dict['source']
         self.notes: str = abuse_dict['notes']
-        self.date: datetime = abuse_dict['date']
+        self.date: datetime = datetime.strptime(abuse_dict['date'], '%Y-%m-%d')
 
         self.retrieved_from_db = False
 
