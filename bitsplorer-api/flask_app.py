@@ -285,7 +285,9 @@ def api_post_address_test():
 @app.route('/api/post/flagging/address', methods=['POST'])
 def api_post_address_flag():
     data = request.form
-    print(data)
+    print('Received Data')
+    for key, value in data.items():
+        print(key, value)
 
     abuse_object = AbuseReport(data)
 
