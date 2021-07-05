@@ -590,8 +590,10 @@ class AbuseReport:
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
                 export_attributes[attribute] = value
-
-        export_attributes['date'] = self.date.strftime('%Y-%m-%d')
+        if self.retrieved_from_db:
+            export_attributes['date'] = self.date.strftime('%Y-%m-%d')
+        else:
+            export_attributes['date'] = self.date
 
         if automatic_database_export and not self.retrieved_from_db:
             try:
