@@ -265,6 +265,21 @@ def api_currency_date():
     return currency_logic.currency_data_retriever(retrieval_date_from, retrieval_date_to)
 
 
+@app.route('/api/abuse', methods=['GET'])
+def api_abuse_retrieve_all():
+    abuse_cursor = data_structures.abuse_collection.find().sort('date')
+
+    return_data = []
+
+    for entry in abuse_cursor:
+        print(entry)
+        entry.pop('_id')
+        entry['date'] = datetime.strftime(entry['date'], '%Y-%m-%d')
+        return_data.append(entry)
+
+    return json.dumps(return_data)
+
+
 # POST
 @app.route('/api/post/test/flagging/address', methods=['GET'])
 def api_post_address_test():
