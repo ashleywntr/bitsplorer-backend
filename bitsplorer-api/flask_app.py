@@ -273,7 +273,7 @@ def api_abuse_retrieve_all():
 
     for entry in abuse_cursor:
         print(entry)
-        entry.pop('_id')
+        entry['_id'] = str(entry['_id'])
         entry['date'] = datetime.strftime(entry['date'], '%Y-%m-%d')
         return_data.append(entry)
 
