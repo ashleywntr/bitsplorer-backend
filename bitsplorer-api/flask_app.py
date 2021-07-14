@@ -10,6 +10,8 @@ from flask_cors import CORS
 from flask_csv import send_csv
 from flask_executor import Executor
 
+from bson.objectid import ObjectId
+
 import currency_logic
 import data_structures
 from data_structures import BlockDay, Address, AbuseReport
@@ -281,6 +283,17 @@ def api_abuse_retrieve_all():
 
 
 # POST
+@app.route('/api/post/flagging/remove', methods=['POST'])
+def api_post_remove_abuse():
+    data = request.form
+    assert data['_id']
+
+    data_structures.abuse_collection.find_one_and_delete({'_id': ObjectId(data['_id'])})
+
+    body = f"Removed {data['_id']} from database"
+    return body
+
+
 @app.route('/api/post/test/flagging/address', methods=['GET'])
 def api_post_address_test():
     body = ""
