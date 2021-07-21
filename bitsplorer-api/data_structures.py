@@ -481,27 +481,32 @@ class Address:
             self.db_tx_retrieval()
         except Exception as exception:
             print(f'Failed to retrieve transactions from DB {exception}')
-            self.blockchain_info_api_tx_retrieval()
+            self.blockchain_info_api_full_tx_retrieval()
         else:
             self.tx_objects_instantiated = True
 
-    def blockchain_info_api_tx_retrieval(self):
+    def blockchain_info_api_tx_retrieval(self, offset):
         tx_list = []
         base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
+        instance_url = base_address_tx_importer_url + f"?offset={offset}"
+        try:
+            address_tx_result = requests.get(url=instance_url, headers=default_headers)
+            address_tx_result.raise_for_status()
+        except requests.exceptions.HTTPError as ex:
+            if not ex.response.status_code == 429:
+                print('Other HTTP error occurred', ex)
+        except requests.exceptions.ReadTimeout as timeout:
+            print("Request read timeout", timeout)
+        except requests.exceptions.ConnectionError as connection_error:
+            print("Connection Error Occurred", connection_error)
+        else:
+            tx_list.extend(address_tx_result.json()['txs'])
+        return tx_list
+
+    def blockchain_info_api_full_tx_retrieval(self):
+        tx_list = []
         for x in range(floor(self.n_tx / 50) + 1):  # Divide total count of transactions into multiples of 50
-            instance_url = base_address_tx_importer_url + f"?offset={x * 50}"
-            try:
-                address_tx_result = requests.get(url=instance_url, headers=default_headers)
-                address_tx_result.raise_for_status()
-            except requests.exceptions.HTTPError as ex:
-                if not ex.response.status_code == 429:
-                    print('Other HTTP error occurred', ex)
-            except requests.exceptions.ReadTimeout as timeout:
-                print("Request read timeout", timeout)
-            except requests.exceptions.ConnectionError as connection_error:
-                print("Connection Error Occurred", connection_error)
-            else:
-                tx_list.extend(address_tx_result.json()['txs'])
+            tx_list.extend(self.blockchain_info_api_tx_retrieval(offset=x * 50))
             sleep(10)
         required_len = len(self.txs)
         self.txs = []

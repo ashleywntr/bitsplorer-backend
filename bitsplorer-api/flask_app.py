@@ -255,8 +255,12 @@ def api_address_transactions():
     address_hash = request.args['hash']
     working_address = Address(address_hash)
     return_data = working_address.outline_retrieval()
-    working_address.tx_object_instantiation()
-    return_data['txs'] = [x.attribute_return() for x in working_address.txs]
+    if 'offset' in request.args:
+        offset = int(request.args['offset'])
+        return_data['txs'] = working_address.blockchain_info_api_tx_retrieval(offset)
+    else:
+        working_address.tx_object_instantiation()
+        return_data['txs'] = [x.attribute_return() for x in working_address.txs]
     return return_data
 
 
