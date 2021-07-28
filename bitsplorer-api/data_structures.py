@@ -486,6 +486,7 @@ class Address:
             self.tx_objects_instantiated = True
 
     def blockchain_info_api_tx_retrieval(self, offset):
+        sleep(10)
         tx_list = []
         base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
         instance_url = base_address_tx_importer_url + f"?offset={offset}"
