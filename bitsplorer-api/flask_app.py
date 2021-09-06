@@ -214,13 +214,11 @@ def api_blocks():
 def api_transactions():
     transaction_hash = request.args['hash']
     return_data = []
-    try:
-        database_lookup = data_structures.transaction_collection.find_one(transaction_hash)
-        if database_lookup:
-            return_data = database_lookup
-    except Exception as ex:
-        print(ex)
-        abort(404)
+
+    database_lookup = data_structures.transaction_collection.find_one(transaction_hash)
+    if database_lookup:
+        tx_item = data_structures.Transaction(database_lookup, True)
+        return_data = tx_item.attribute_return()
 
     return return_data
 

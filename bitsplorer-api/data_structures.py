@@ -363,7 +363,7 @@ class Block:
 class Transaction:
     def __init__(self, transaction_attr_dict: dict, retrieved_from_db=False):
 
-        self.coinbase_transaction: bool
+        self.coinbase_transaction: bool = False
         self.hash = ""  # Unique hash associated with the transaction
         self._id = ""
         self.retrieved_from_db = retrieved_from_db
@@ -385,6 +385,8 @@ class Transaction:
         self.value_inputs = 0
         self.value_outputs = 0
 
+        self.change_adjusted_total: int = 0
+
         # Statistics
         if not retrieved_from_db:
             self.statistics_generation()
@@ -404,17 +406,29 @@ class Transaction:
             self.value_inputs = transaction_attr_dict['value_inputs']
             self.value_outputs = transaction_attr_dict['value_outputs']
             self.coinbase_transaction = transaction_attr_dict['coinbase_transaction']
+            if not self.change_adjusted_total:
+                self.statistics_generation()
 
     def statistics_generation(self):
+        change_value = 0
+        verified_change = []
         for tr_input in self.inputs:
             try:
                 self.value_inputs += tr_input['prev_out']['value']
-            except KeyError:
-                pass
-            except TypeError:
-                pass
+                if not self.coinbase_transaction:
+                    for tr_output in self.out:
+                        tr_input_address = tr_input['prev_out']['addr']
+                        if (tr_input_address == tr_output['addr']) & (tr_input_address not in verified_change):
+                            change_value += tr_output['value']
+                            verified_change.append(tr_input_address)
+            except KeyError as ex:
+                print('Key Error in TX Statistics Generation', ex)
+            except TypeError as ex:
+                print('Type Error in TX Statistics Generation', ex)
+
         for tr_output in self.out:
             self.value_outputs += tr_output['value']
+        self.change_adjusted_total = self.value_outputs - change_value
 
     def attribute_return(self):
         export_attributes = {}
