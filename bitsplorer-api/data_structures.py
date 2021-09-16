@@ -2,6 +2,7 @@ from concurrent.futures import as_completed
 from copy import deepcopy
 from datetime import datetime, timezone
 from math import floor
+from random import randint
 from time import sleep
 
 import pymongo.errors
@@ -500,7 +501,7 @@ class Address:
             self.tx_objects_instantiated = True
 
     def blockchain_info_api_tx_retrieval(self, offset):
-        sleep(10)
+        sleep(randint(2, 15))
         tx_list = []
         base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
         instance_url = base_address_tx_importer_url + f"?offset={offset}"
