@@ -450,6 +450,7 @@ class Address:
         self.address = address_string
         self._id = self.address
         self.txs = []
+        self.txs_passthru_store = []
         self.tx_objects_instantiated = False
         self.retrieved_from_db = False
 
@@ -517,9 +518,19 @@ class Address:
             print("Connection Error Occurred", connection_error)
         else:
             tx_list.extend(address_tx_result.json()['txs'])
-        return tx_list
 
-    def blockchain_info_api_full_tx_retrieval(self):
+        for tx in tx_list:
+            try:
+                self.txs_passthru_store.append(Transaction(tx, retrieved_from_db=False))
+            except KeyError:  # retrieve manually
+                print(f"Key error in transaction {tx['hash']}")
+                standalone_tx_url = f"https://blockchain.info/rawtx/{tx['hash']}"
+                tx_info = requests.get(standalone_tx_url, headers=default_headers)
+                tx_info.raise_for_status()
+                self.txs.append(Transaction(tx_info.json(), retrieved_from_db=False))
+                print("TX imported from API")
+
+    def blockchain_info_api_full_tx_retrieval(self): # depreciated
         tx_list = []
         for x in range(floor(self.n_tx / 50) + 1):  # Divide total count of transactions into multiples of 50
             tx_list.extend(self.blockchain_info_api_tx_retrieval(offset=x * 50))
@@ -565,7 +576,7 @@ class Address:
 
     def attribute_exporter(self):
         export_attributes = {}
-        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db', 'native_abuse_data'}
+        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db', 'native_abuse_data', 'txs_passthru_store'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:

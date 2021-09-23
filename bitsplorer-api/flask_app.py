@@ -255,7 +255,8 @@ def api_address_transactions():
     return_data = working_address.outline_retrieval()
     if 'offset' in request.args:
         offset = int(request.args['offset'])
-        return_data['txs'] = working_address.blockchain_info_api_tx_retrieval(offset)
+        working_address.blockchain_info_api_tx_retrieval(offset)
+        return_data['txs'] = [x.attribute_return() for x in working_address.txs_passthru_store]
     else:
         working_address.tx_object_instantiation()
         return_data['txs'] = [x.attribute_return() for x in working_address.txs]
