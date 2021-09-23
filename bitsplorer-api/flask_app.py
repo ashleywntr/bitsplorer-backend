@@ -22,6 +22,7 @@ executor = Executor(app)
 CORS(app)
 
 bitcoin_abuse_token = "wZe9GYRta5RN8s32QOKDmtmMBWkDXzi68ho5LXz4WmmBgstS3sOgRv44rnLZ"
+news_api_key = '84f2742a821a47bdb0f1fb5a32a82fb7'
 currency_list = ['GBP', 'EUR', 'CNY']
 
 
@@ -268,6 +269,15 @@ def api_currency_date():
     retrieval_date_from = request.args['date_from']
     retrieval_date_to = request.args['date_to']
     return currency_logic.currency_data_retriever(retrieval_date_from, retrieval_date_to)
+
+@app.route('/api/news', methods=['GET'])
+def api_news_passthrough():
+    topic = 'bitcoin'
+    topic_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
+    url = f'https://newsapi.org/v2/everything?q={topic}&from={topic_date}&sortBy=popularity&apiKey={news_api_key}'
+    news_data = requests.get(url=url, headers=data_structures.default_headers)
+    return news_data.json()
+
 
 
 @app.route('/api/abuse', methods=['GET'])
