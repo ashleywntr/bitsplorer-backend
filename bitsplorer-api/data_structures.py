@@ -19,7 +19,7 @@ default_headers = {
 
 SATOSHI_MULTIPLIER = 10 ** 8
 
-db_address = "mongodb://192.168.1.249:27017/"
+db_address = "mongodb://localhost:27017/"
 
 database_client = MongoClient(db_address)
 db_slice = 'pychain-dev'  # Can be altered to correspond to / create new databases within Mongo

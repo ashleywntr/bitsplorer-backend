@@ -9,7 +9,7 @@ from requests import Response, Request
 from concurrent.futures import as_completed
 
 maintain_from = '2020-01-01'
-api_url = 'http://192.168.1.249'
+api_url = 'bitsplorer.ddns.net'
 api_port = 55397
 
 
