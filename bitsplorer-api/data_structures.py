@@ -7,6 +7,7 @@ from time import sleep
 
 import pymongo.errors
 import requests
+import urllib.parse
 from pymongo import MongoClient
 from pymongo import errors
 from requests_futures.sessions import FuturesSession
@@ -19,10 +20,13 @@ default_headers = {
 
 SATOSHI_MULTIPLIER = 10 ** 8
 
-db_address = "mongodb://localhost:27017/"
+db_user = urllib.parse.quote_plus("mongoroot")
+db_pwd = urllib.parse.quote_plus("@TH%yq3pvvr1")
+
+db_address = f"mongodb://{db_user}:{db_pwd}@server.bitsplorer.org:27017/"
 
 database_client = MongoClient(db_address)
-db_slice = 'pychain-dev'  # Can be altered to correspond to / create new databases within Mongo
+db_slice = 'BitSplorer-Dev'  # Can be altered to correspond to / create new databases within Mongo
 database = database_client[db_slice]
 transaction_collection = database["Transactions"]
 block_collection = database["Blocks"]
@@ -403,7 +407,7 @@ class Transaction:
                 self.attribute_return()
         else:
             self.hash = transaction_attr_dict['_id']
-            self.id = transaction_attr_dict['_id']
+            self._id = transaction_attr_dict['_id']
             self.value_inputs = transaction_attr_dict['value_inputs']
             self.value_outputs = transaction_attr_dict['value_outputs']
             self.coinbase_transaction = transaction_attr_dict['coinbase_transaction']
@@ -415,7 +419,8 @@ class Transaction:
         verified_change = []
         for tr_input in self.inputs:
             try:
-                self.value_inputs += tr_input['prev_out']['value']
+                if tr_input['prev_out']:
+                    self.value_inputs += tr_input['prev_out']['value']
                 if not self.coinbase_transaction:
                     for tr_output in self.out:
                         tr_input_address = tr_input['prev_out']['addr']

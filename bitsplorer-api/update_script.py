@@ -8,8 +8,8 @@ from requests_futures.sessions import FuturesSession
 from requests import Response, Request
 from concurrent.futures import as_completed
 
-maintain_from = '2020-01-01'
-api_url = 'bitsplorer.ddns.net'
+maintain_from = '2022-01-01'
+api_url = 'localhost'
 api_port = 55397
 
 

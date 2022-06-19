@@ -35,8 +35,8 @@ def hello_world():
     page_content += "\n<h4> Block Explorer Examples </h4>"
     page_content += '\n<a href="../api/blockdays?date=2020-07-31"> BlockDay Request </a><br>'
     page_content += '\n<a href="../api/csv/block?date=2020-07-31"> BlockDay CSV Request </a><br>'
-    page_content += '\n<a href="../api/block?hash=000000000000000000042be75dce3cb116c9720801a9208bcb556c6f8604b059"> Block Request </a><br>'
-    page_content += '\n<a href="../api/transaction?hash=f205316b3c722247c6bad75e71a9e2e14d1f7329c042ff7797593cd67f982686"> Transaction Request </a>'
+    page_content += '\n<a href="../api/block?hash=0000000000000000000e085569486b949dd169be72d57782dc31c74ba37ca940"> Block Request </a><br>'
+    page_content += '\n<a href="../api/transaction?hash=9edcc308ce4d90278c0f86317371b5710deee156f584f2af801659517e0f816e"> Transaction Request </a>'
 
     page_content += "\n<h4> Address Explorer Examples </h4>"
     page_content += '\n<a href="../api/address?hash=172fgNkRaoDmAqpbkct5TUYBr1PodCF4pZ"> Address Request </a>'
@@ -221,6 +221,9 @@ def api_transactions():
         tx_item = data_structures.Transaction(database_lookup, True)
         return_data = tx_item.attribute_return()
 
+    else:
+        abort(404)
+
     return return_data
 
 
@@ -273,8 +276,7 @@ def api_currency_date():
 @app.route('/api/news', methods=['GET'])
 def api_news_passthrough():
     topic = 'bitcoin'
-    topic_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
-    url = f'https://newsapi.org/v2/everything?q={topic}&from={topic_date}&sortBy=popularity&apiKey={news_api_key}'
+    url = f'https://newsapi.org/v2/everything?q={topic}&sortBy=popularity&apiKey={news_api_key}'
     news_data = requests.get(url=url, headers=data_structures.default_headers)
     return news_data.json()
 
