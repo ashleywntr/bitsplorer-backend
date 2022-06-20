@@ -1,7 +1,7 @@
+import traceback
 from concurrent.futures import as_completed
 from copy import deepcopy
 from datetime import datetime, timezone
-from math import floor
 from random import randint
 from time import sleep
 
@@ -419,16 +419,17 @@ class Transaction:
         verified_change = []
         for tr_input in self.inputs:
             try:
-                if tr_input['prev_out']:
+                if tr_input['prev_out']['value']:
                     self.value_inputs += tr_input['prev_out']['value']
-                if not self.coinbase_transaction:
                     for tr_output in self.out:
-                        tr_input_address = tr_input['prev_out']['addr']
-                        if (tr_input_address == tr_output['addr']) & (tr_input_address not in verified_change):
-                            change_value += tr_output['value']
-                            verified_change.append(tr_input_address)
+                        if 'addr' in tr_output:
+                            tr_input_address = tr_input['prev_out']['addr']
+                            if (tr_input_address == tr_output['addr']) & (tr_input_address not in verified_change):
+                                change_value += tr_output['value']
+                                verified_change.append(tr_input_address)
             except KeyError as ex:
                 print('Key Error in TX Statistics Generation', ex)
+                traceback.print_exc()
             except TypeError as ex:
                 print('Type Error in TX Statistics Generation', ex)
 
@@ -496,16 +497,6 @@ class Address:
         self.final_balance = address_data['balanceSat']
         self.txs = address_data['transactions']
 
-    def tx_object_instantiation(self):
-        print('Retrieving Transactions for ', self.address)
-        try:
-            self.db_tx_retrieval()
-        except Exception as exception:
-            print(f'Failed to retrieve transactions from DB {exception}')
-            self.blockchain_info_api_full_tx_retrieval()
-        else:
-            self.tx_objects_instantiated = True
-
     def blockchain_info_api_tx_retrieval(self, offset):
         sleep(randint(2, 15))
         tx_list = []
@@ -535,26 +526,6 @@ class Address:
                 self.txs.append(Transaction(tx_info.json(), retrieved_from_db=False))
                 print("TX imported from API")
 
-    def blockchain_info_api_full_tx_retrieval(self): # depreciated
-        tx_list = []
-        for x in range(floor(self.n_tx / 50) + 1):  # Divide total count of transactions into multiples of 50
-            tx_list.extend(self.blockchain_info_api_tx_retrieval(offset=x * 50))
-            sleep(10)
-        required_len = len(self.txs)
-        self.txs = []
-        for tx in tx_list:
-            try:
-                self.txs.append(Transaction(tx, retrieved_from_db=False))
-            except KeyError:  # retrieve manually
-                print(f"Key error in transaction {tx['hash']}")
-                standalone_tx_url = f"https://blockchain.info/rawtx/{tx['hash']}"
-                tx_info = requests.get(standalone_tx_url, headers=default_headers)
-                tx_info.raise_for_status()
-                self.txs.append(Transaction(tx_info.json(), retrieved_from_db=False))
-                print("TX imported from API")
-        print(f"{len(self.txs)} of {required_len} retrieved")
-        assert len(self.txs) == required_len
-
     def db_tx_retrieval(self):
         assert self.txs
         raw_tx_list = deepcopy(self.txs)
@@ -581,7 +552,8 @@ class Address:
 
     def attribute_exporter(self):
         export_attributes = {}
-        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db', 'native_abuse_data', 'txs_passthru_store'}
+        excluded_keys = {'address', 'txs', 'tx_objects_instantiated', 'retrieved_from_db', 'native_abuse_data',
+                         'txs_passthru_store'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:

@@ -55,6 +55,7 @@ def hello_world():
 def hello_api_world():
     return 'Hello World!'
 
+
 @app.route('/api/visualisation/sunburst', methods=['GET'])
 def api_sunburst_visualisation():
     working_blockdays = []
@@ -198,7 +199,6 @@ def api_blockdays():
 
 @app.route('/api/block', methods=['GET'])
 def api_blocks():
-    return_data = []
     block_hash = request.args['hash']
     try:
         database_lookup = data_structures.block_collection.find_one(block_hash)
@@ -220,7 +220,6 @@ def api_transactions():
     if database_lookup:
         tx_item = data_structures.Transaction(database_lookup, True)
         return_data = tx_item.attribute_return()
-
     else:
         abort(404)
 
@@ -262,8 +261,7 @@ def api_address_transactions():
         working_address.blockchain_info_api_tx_retrieval(offset)
         return_data['txs'] = [x.attribute_return() for x in working_address.txs_passthru_store]
     else:
-        working_address.tx_object_instantiation()
-        return_data['txs'] = [x.attribute_return() for x in working_address.txs]
+        abort(400)
     return return_data
 
 
@@ -273,13 +271,13 @@ def api_currency_date():
     retrieval_date_to = request.args['date_to']
     return currency_logic.currency_data_retriever(retrieval_date_from, retrieval_date_to)
 
+
 @app.route('/api/news', methods=['GET'])
 def api_news_passthrough():
     topic = 'bitcoin'
     url = f'https://newsapi.org/v2/everything?q={topic}&sortBy=popularity&apiKey={news_api_key}'
     news_data = requests.get(url=url, headers=data_structures.default_headers)
     return news_data.json()
-
 
 
 @app.route('/api/abuse', methods=['GET'])

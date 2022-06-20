@@ -1,12 +1,11 @@
-from data_structures import BlockDay, Block, Address, AbuseReport, Transaction, default_headers
-from datetime import datetime
-from datetime import date
-from datetime import timedelta
-from project_enum import RetrievalType
-import requests
-from requests_futures.sessions import FuturesSession
-from requests import Response, Request
 from concurrent.futures import as_completed
+from datetime import datetime
+from datetime import timedelta
+
+from requests_futures.sessions import FuturesSession
+
+from data_structures import BlockDay, default_headers
+from project_enum import RetrievalType
 
 maintain_from = '2022-01-01'
 api_url = 'localhost'
