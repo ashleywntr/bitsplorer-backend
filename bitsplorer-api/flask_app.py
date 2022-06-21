@@ -33,8 +33,8 @@ def hello_world():
     page_content += "\n<div><h3> Please choose some example functions</h3>"
 
     page_content += "\n<h4> Block Explorer Examples </h4>"
-    page_content += '\n<a href="../api/blockdays?date=2020-07-31"> BlockDay Request </a><br>'
-    page_content += '\n<a href="../api/csv/block?date=2020-07-31"> BlockDay CSV Request </a><br>'
+    page_content += '\n<a href="../api/blockdays?date=2022-04-1"> BlockDay Request </a><br>'
+    page_content += '\n<a href="../api/csv/block?date=2022-04-1"> BlockDay CSV Request </a><br>'
     page_content += '\n<a href="../api/block?hash=0000000000000000000e085569486b949dd169be72d57782dc31c74ba37ca940"> Block Request </a><br>'
     page_content += '\n<a href="../api/transaction?hash=9edcc308ce4d90278c0f86317371b5710deee156f584f2af801659517e0f816e"> Transaction Request </a>'
 

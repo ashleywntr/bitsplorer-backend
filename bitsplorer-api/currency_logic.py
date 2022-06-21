@@ -46,9 +46,9 @@ def exchange_data_retrieval(date_from, date_to):
         date_from = date_object_from.strftime('%Y-%m-%d')
         print('Exchange retrieval updated to proceeding Friday')
     try:
-        exchange_base_url = "https://freecurrencyapi.net/api/v1/rates"
-        exchange_api_key = "72741890-bc06-11eb-81e3-cd95bf08b9a9"
-        exchange_rate_retrieval_url = f"{exchange_base_url}?base_currency=USD&date_from={date_from}&date_to={date_to}&apikey={exchange_api_key}"
+        exchange_base_url = "https://api.freecurrencyapi.com/v1/historical"
+        exchange_api_key = "hUu0gsa0iSysL0s2dRdiOVsEd30nwgde9tAyWhPB"
+        exchange_rate_retrieval_url = f"{exchange_base_url}?base_currency=USD&date_from={date_from}&date_to={date_to}&apikey={exchange_api_key}&currency={flask_app.currency_list}"
 
         print(f"Retrieving Exchange Rate Data from {exchange_rate_retrieval_url}")
         exchange_headers = data_structures.default_headers
