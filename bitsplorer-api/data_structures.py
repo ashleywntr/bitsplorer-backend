@@ -473,7 +473,7 @@ class Address:
             assert database_lookup
         except AssertionError:
             print("Assertion Error: No Matching Address Outline found in database")
-            self.bitcoin_com_api_outline_retrieval()
+            self.blockchain_info_api_tx_retrieval(outline=True)
         else:
             self.n_tx = database_lookup['n_tx']
             self.total_received = database_lookup['total_received']
@@ -497,7 +497,7 @@ class Address:
         self.final_balance = address_data['balanceSat']
         self.txs = address_data['transactions']
 
-    def blockchain_info_api_tx_retrieval(self, offset):
+    def blockchain_info_api_tx_retrieval(self, offset=0, outline=False):
         sleep(randint(2, 15))
         tx_list = []
         base_address_tx_importer_url = f"https://blockchain.info/rawaddr/{self.address}"
@@ -513,7 +513,14 @@ class Address:
         except requests.exceptions.ConnectionError as connection_error:
             print("Connection Error Occurred", connection_error)
         else:
-            tx_list.extend(address_tx_result.json()['txs'])
+            if outline:
+                self.n_tx = address_tx_result.json()['n_tx']  # Typo present in API
+                self.total_received = address_tx_result.json()['total_received']
+                self.total_sent = address_tx_result.json()['total_sent']
+                self.final_balance = address_tx_result.json()['final_balance']
+                pass
+            else:
+                tx_list.extend(address_tx_result.json()['txs'])
 
         for tx in tx_list:
             try:
