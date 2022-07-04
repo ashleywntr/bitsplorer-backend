@@ -10,6 +10,7 @@ import requests
 import urllib.parse
 from pymongo import MongoClient
 from pymongo import errors
+from concurrent.futures import ProcessPoolExecutor
 from requests_futures.sessions import FuturesSession
 
 from project_enum import RetrievalType
@@ -62,6 +63,8 @@ class BlockDay:
         self.avg_num_outputs = 0
         self.avg_val_inputs = 0
         self.avg_val_outputs = 0
+
+        self.block_retrieval_working_list = []
 
     def data_retrieval(self, retrieval_type):
         try:
@@ -132,22 +135,22 @@ class BlockDay:
         self.block_outline_list = blockday_data_dict
 
     def retrieve_blocks(self, import_transactions=True):  # Retrieve Blocks - determine whether from API or DB
-        working_list = []  # Will only be written to if blocks are missing from DB
+        self.block_retrieval_working_list = []  # Will only be written to if blocks are missing from DB
         for x in self.block_outline_list:
             try:
                 result = block_collection.find_one(x['hash'])
                 assert result
             except AssertionError:
-                working_list.append(x['hash'])
+                self.block_retrieval_working_list.append(x['hash'])
             else:
                 block_object = Block(result, retrieved_from_db=True, transactions_required=import_transactions)
                 self.instantiated_block_objects.append(block_object)
                 print(f"Block {block_object.height} retrieved from DB")
 
-        if working_list:
-            self.retrieve_blocks_from_api(working_list)
+        while self.block_retrieval_working_list:
+            self.retrieve_blocks_from_api()
         else:
-            print("All required values were retrieved from DB")
+            print("All required values were retrieved")
 
         assert len(self.instantiated_block_objects) == len(self.block_outline_list)  # Check whether the number of
         # instantiated block objects matches the length of the retrieval list.
@@ -161,44 +164,38 @@ class BlockDay:
             except Exception as ex:
                 print('Unable to export Blockday to DB', {ex})
 
-    def retrieve_blocks_from_api(self, working_list):  # Begin retrieval of Block hashes present in working_list
+    def block_retrieval_hook(self, r):
+        try:
+            result = r.result()  # Parse future object back to Requests' response object
+            result.raise_for_status()  # Raise exception if status not 200 normal
+            parsed_result = result.json()  # Interpret response data as JSON
+            self.instantiated_block_objects.append(Block(parsed_result))  # Instantiate Block object and
+            # append to self block list
+        except requests.exceptions.HTTPError as ex:
+            if not ex.response.status_code == 429:
+                print('Other HTTP error occurred in response', ex)
+        except requests.exceptions.ReadTimeout as timeout:
+            print("Response read timeout", timeout)
+        except requests.exceptions.ConnectionError as connection_error:
+            print("Connection Error Occurred", connection_error)
+        else:
+            self.block_retrieval_working_list.remove(parsed_result['hash'])  # Remove entry from list if present in response
+            print(f'{len(self.block_retrieval_working_list)} entries remaining on {self._id} working list')
+
+    def retrieve_blocks_from_api(self):  # Begin retrieval of Block hashes present in working_list
         loop_count = 0
-        print(f'Beginning retrieval of {len(working_list)} entries on {self._id} working list')
-        while working_list:
-            with FuturesSession(max_workers=100) as session:
-                futures = []
-                for block_hash in working_list:
-                    block_api_single_block_url = f'https://blockchain.info/rawblock/{block_hash}'
-                    try:
-                        futures.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15))
-                    except Exception as ex:
-                        print('Exception in Block Retrieval', ex)
-                    except requests.exceptions.HTTPError as ex:  # Ignore API overload related errors
-                        if not ex.response.status_code == 429:
-                            print('Other HTTP error occurred in request', ex)
-
-                for future in as_completed(futures):  # Process responses as soon as they are retrieved
-                    try:
-                        result = future.result()  # Parse future object back to Requests' response object
-                        result.raise_for_status()  # Raise exception if status not 200 normal
-                        parsed_result = result.json()  # Interpret response data as JSON
-                        self.instantiated_block_objects.append(Block(parsed_result))  # Instantiate Block object and
-                        # append to self block list
-                    except requests.exceptions.HTTPError as ex:
-                        if not ex.response.status_code == 429:
-                            print('Other HTTP error occurred in response', ex)
-                    except requests.exceptions.ReadTimeout as timeout:
-                        print("Response read timeout", timeout)
-                    except requests.exceptions.ConnectionError as connection_error:
-                        print("Connection Error Occurred", connection_error)
-                    else:
-                        working_list.remove(parsed_result['hash'])  # Remove entry from list if present in response
-                        print(f'{len(working_list)} entries remaining on {self._id} working list')
-
-            print(f'Failed {len(working_list)} retrievals')
-            loop_count += 1
-            if loop_count == 30:
-                raise Exception(f"Failed to retrieve all values on working list after {loop_count} tries")
+        print(f'Beginning retrieval of {len(self.block_retrieval_working_list)} entries on {self._id} working list')
+        while self.block_retrieval_working_list:
+            session = FuturesSession(max_workers=10, executor=ProcessPoolExecutor)
+            for block_hash in self.block_retrieval_working_list:
+                block_api_single_block_url = f'https://blockchain.info/rawblock/{block_hash}'
+                try:
+                    session.get(url=block_api_single_block_url, headers=default_headers, timeout=15, hooks={'response': self.block_retrieval_hook})
+                except Exception as ex:
+                    print('Exception in Block Retrieval', ex)
+                except requests.exceptions.HTTPError as ex:  # Ignore API overload related errors
+                    if not ex.response.status_code == 429:
+                        print('Other HTTP error occurred in request', ex)
 
     def statistics_generation(self):
         self.total_num_blocks = len(self.instantiated_block_objects)
@@ -220,7 +217,7 @@ class BlockDay:
         # Default behaviour is to also export to DB.
         export_attributes = {}
         excluded_keys = {'instantiated_block_objects', 'block_outline_list', 'failed_retrievals', 'cached_import',
-                         'db_block_list', 'timestamp', 'imported_from_db'}
+                         'db_block_list', 'timestamp', 'imported_from_db', 'block_retrieval_working_list'}
 
         for attribute, value in vars(self).items():
             if attribute not in excluded_keys:
