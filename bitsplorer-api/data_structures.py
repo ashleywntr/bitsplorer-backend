@@ -1,3 +1,4 @@
+import concurrent.futures
 import traceback
 from concurrent.futures import as_completed
 from copy import deepcopy
@@ -147,7 +148,7 @@ class BlockDay:
                 self.instantiated_block_objects.append(block_object)
                 print(f"Block {block_object.height} retrieved from DB")
 
-        while self.block_retrieval_working_list:
+        if self.block_retrieval_working_list:
             self.retrieve_blocks_from_api()
         else:
             print("All required values were retrieved")
@@ -168,7 +169,7 @@ class BlockDay:
         try:
             result = r.result()  # Parse future object back to Requests' response object
             result.raise_for_status()  # Raise exception if status not 200 normal
-            parsed_result = result.json()  # Interpret response data as JSON
+            parsed_result = result.json()# Interpret response data as JSON
             self.instantiated_block_objects.append(Block(parsed_result))  # Instantiate Block object and
             # append to self block list
         except requests.exceptions.HTTPError as ex:
@@ -183,19 +184,12 @@ class BlockDay:
             print(f'{len(self.block_retrieval_working_list)} entries remaining on {self._id} working list')
 
     def retrieve_blocks_from_api(self):  # Begin retrieval of Block hashes present in working_list
-        loop_count = 0
         print(f'Beginning retrieval of {len(self.block_retrieval_working_list)} entries on {self._id} working list')
-        while self.block_retrieval_working_list:
-            session = FuturesSession(max_workers=10, executor=ProcessPoolExecutor)
+        with FuturesSession(max_workers=10) as session:
+            futures_list = []
             for block_hash in self.block_retrieval_working_list:
                 block_api_single_block_url = f'https://blockchain.info/rawblock/{block_hash}'
-                try:
-                    session.get(url=block_api_single_block_url, headers=default_headers, timeout=15, hooks={'response': self.block_retrieval_hook})
-                except Exception as ex:
-                    print('Exception in Block Retrieval', ex)
-                except requests.exceptions.HTTPError as ex:  # Ignore API overload related errors
-                    if not ex.response.status_code == 429:
-                        print('Other HTTP error occurred in request', ex)
+                futures_list.append(session.get(url=block_api_single_block_url, headers=default_headers, timeout=15, hooks={'response': self.block_retrieval_hook}))
 
     def statistics_generation(self):
         self.total_num_blocks = len(self.instantiated_block_objects)
