@@ -24,7 +24,7 @@ default_headers = {
 SATOSHI_MULTIPLIER = 10 ** 8
 
 db_user = urllib.parse.quote_plus(config.mongo_username)
-db_pwd = urllib.parse.quote_plus(config.mongo_pasword)
+db_pwd = urllib.parse.quote_plus(config.mongo_password)
 
 db_address = f"mongodb://{db_user}:{db_pwd}@server.bitsplorer.org:27017/"
 
