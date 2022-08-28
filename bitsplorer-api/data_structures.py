@@ -14,14 +14,17 @@ from requests_futures.sessions import FuturesSession
 
 from project_enum import RetrievalType
 
+import config
+#Please add config.py with mongodb credentials to project root
+
 default_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43'}
 
 SATOSHI_MULTIPLIER = 10 ** 8
 
-db_user = urllib.parse.quote_plus("mongoroot")
-db_pwd = urllib.parse.quote_plus("@TH%yq3pvvr1")
+db_user = urllib.parse.quote_plus(config.mongo_username)
+db_pwd = urllib.parse.quote_plus(config.mongo_pasword)
 
 db_address = f"mongodb://{db_user}:{db_pwd}@server.bitsplorer.org:27017/"
 
