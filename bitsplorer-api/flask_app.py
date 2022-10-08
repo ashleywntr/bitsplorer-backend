@@ -1,6 +1,6 @@
 import gc
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask
@@ -267,9 +267,10 @@ def api_address_transactions():
 
 @app.route('/api/currency', methods=['GET'])
 def api_currency_date():
-    retrieval_date_from = request.args['date_from']
-    retrieval_date_to = request.args['date_to']
-    return currency_logic.currency_data_retriever(retrieval_date_from, retrieval_date_to)
+    request_from = datetime.fromisoformat(request.args['date_from']).replace(tzinfo=timezone.utc)
+    request_to = datetime.fromisoformat(request.args['date_to']).replace(tzinfo=timezone.utc)
+
+    return currency_logic.currency_data_retriever(request_from, request_to)
 
 
 @app.route('/api/news', methods=['GET'])

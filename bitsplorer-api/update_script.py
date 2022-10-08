@@ -7,12 +7,12 @@ from requests_futures.sessions import FuturesSession
 from data_structures import BlockDay, default_headers
 from project_enum import RetrievalType
 
-maintain_from = '2022-01-01'
-api_url = 'localhost'
-api_port = 55397
+default_maintain_from = '2021-01-01'
+api_url = 'server.bitsplorer.org'
+api_port = 443
 
 
-def date_range_calc():
+def date_range_calc(maintain_from):
     from_date = datetime.strptime(maintain_from, '%Y-%m-%d')
     current_date = datetime.utcnow()
     date_delta = current_date - from_date
@@ -25,7 +25,8 @@ def date_range_calc():
 
 
 if __name__ == '__main__':
-    working_range = date_range_calc()
+    maintain_from = input("Please enter a date to maintain from (iso format): ")
+    working_range = date_range_calc(maintain_from)
     futures_list = []
 
     with FuturesSession() as session:
